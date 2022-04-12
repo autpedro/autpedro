@@ -1,5 +1,5 @@
-- 👋 Hi, I’m @autpedro
--:battery: I’m currently studyng electrical engineering
+- 👋 Hi, I’m @autpedro<br>
+-<ln>:battery: I’m currently studyng electrical engineering<ln>
 - 👀 I’m interested in learn codes
 - 🌱 I’m currently learning front-end web design
 - 💞️ I’m looking to collaborate on internship jobs
