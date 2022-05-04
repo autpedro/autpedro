@@ -1,3 +1,9 @@
+<style>
+
+  body{
+  background-image: linear-gradient(to bottom, #000000, #270419, #3e0037, #470062, #261699);
+
+</style>
 - 👋 Hi, I’m @autpedro
 <br><li>:battery: I’m currently studyng electrical engineering</li>
 - 👀 I’m interested in learn codes
