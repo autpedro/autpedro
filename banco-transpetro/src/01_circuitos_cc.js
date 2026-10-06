@@ -1,5 +1,5 @@
 B({
-id:"b01", titulo:"Circuitos CC e análise de redes",
+id:"b01", grupo:"Conhecimentos específicos", titulo:"Circuitos CC e análise de redes",
 sub:"Kirchhoff, análise nodal, Thévenin/Norton, pontes e redes infinitas. É a base de quase todas as contas da prova.",
 objetivos:["Montar equações de nó (KCL) e de malha (KVL) sem errar sinal","Calcular R<sub>th</sub> e V<sub>th</sub> de qualquer rede resistiva","Reconhecer uma ponte equilibrada e um curto que divide o circuito","Montar a matriz de admitância nodal Y por inspeção","Resolver redes em escada infinitas pela auto-semelhança"],
 qs:["11-33","11-38","18-43","18-44","18-61","18-70","23-44","11-34","23-62"],

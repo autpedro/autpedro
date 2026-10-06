@@ -18,7 +18,7 @@ html = f"""<title>Banco Transpetro Elétrica</title>
 <div class="mobile-nav"><b>Banco Transpetro · Elétrica</b><select id="msel" aria-label="Escolher bloco"></select></div>
 <div class="app">
   <aside class="side">
-    <div class="brand"><span class="eyebrow">Engenheiro(a) Júnior · Elétrica</span><h1>Banco Transpetro</h1><p>185 questões de 5 provas (2006 a 2023), organizadas em blocos de estudo com aprendizagem ativa.</p></div>
+    <div class="brand"><span class="eyebrow">Engenheiro(a) Júnior · Elétrica</span><h1>Banco Transpetro</h1><p>275 questões de 5 provas (2006 a 2023): específicas, Português e Inglês, em blocos de estudo com aprendizagem ativa.</p></div>
     <div class="overall" id="overall"></div>
     <ul class="blist" id="blist"></ul>
     <p style="margin-top:18px"><button class="btn" data-resetall="1">Zerar meu progresso</button></p>
