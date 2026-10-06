@@ -28,7 +28,7 @@ function renderNav(){
   let tot = 0, totok = 0;
   const items = BLOCOS.map((b, i) => {
     const s = blockStats(b); tot += s.n; totok += s.ok;
-    return `<li><button data-b="${b.id}" aria-current="${b.id===cur}"><span class="bn">${String(i+1).padStart(2,"0")}</span><span class="bt">${b.titulo}</span><span class="bp num">${s.ok}/${s.n} questões resolvidas</span></button></li>`;
+    return (b.grupo ? `<li class="grp">${b.grupo}</li>` : "") + `<li><button data-b="${b.id}" aria-current="${b.id===cur}"><span class="bn">${String(i+1).padStart(2,"0")}</span><span class="bt">${b.titulo}</span><span class="bp num">${s.ok}/${s.n} questões resolvidas</span></button></li>`;
   }).join("");
   $("#blist").innerHTML = items;
   const pct = tot ? Math.round(100*totok/tot) : 0;
@@ -96,7 +96,9 @@ function figHtml(f){ return `<div class="figs">${[].concat(f).map(x => `<img src
 function renderQuestoes(b){
   const f = st.filtro;
   const ids = b.qs.filter(id => { const s = st.q[id]; if (f==="pend") return !(s && s.ok); if (f==="erradas") return s && s.errou; return true; });
-  let html = `<div class="qtools"><label for="filtro">Mostrar</label><select id="filtro"><option value="todas" ${f==="todas"?"selected":""}>Todas</option><option value="pend" ${f==="pend"?"selected":""}>Só as não resolvidas</option><option value="erradas" ${f==="erradas"?"selected":""}>Só as que já errei</option></select><span>Errou? Você vê onde o raciocínio falhou e tenta de novo. A resolução só aparece depois.</span></div>`;
+  let html = "";
+  if (b.texto) html += `<details class="textobox" open><summary>${b.textoTitulo || "Texto da prova (leia antes de responder)"}</summary><div class="figs texto">${[].concat(b.texto).map(x => `<img src="figs/${x}.png" alt="Texto da prova" loading="lazy">`).join("")}</div></details>`;
+  html += `<div class="qtools"><label for="filtro">Mostrar</label><select id="filtro"><option value="todas" ${f==="todas"?"selected":""}>Todas</option><option value="pend" ${f==="pend"?"selected":""}>Só as não resolvidas</option><option value="erradas" ${f==="erradas"?"selected":""}>Só as que já errei</option></select><span>Errou? Você vê onde o raciocínio falhou e tenta de novo. A resolução só aparece depois.</span></div>`;
   if (!ids.length) html += `<p class="empty">Nenhuma questão neste filtro.</p>`;
   ids.forEach(id => html += renderQ(id));
   return html;
