@@ -20,6 +20,11 @@
   --bad-bg: #fde4e1;
   --bad-ink: #8f1d12;
   --barrel: #f7fbfc;
+  --glass: #e4eef2;
+  --powder: #f4ecd6;
+  --powder-edge: #c9b88a;
+  --cap: #9fb0ba;
+  --rubber: #5d6b74;
   --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
   --font-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
   --font-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -29,6 +34,7 @@
     --bg: #0d171d; --surface: #15232b; --ink: #e6eff3; --muted: #93a7b2; --line: #2a3d48;
     --accent: #3cc3cc; --accent-ink: #062126; --liquid: #2b7f95; --liquid-edge: #63c7df;
     --warn-bg: #3a2c0f; --warn-ink: #f5cf85; --bad-bg: #3d1915; --bad-ink: #ffb3a8; --barrel: #1b2d37;
+    --glass: #203640; --powder: #e8dcb8; --powder-edge: #a8955f; --cap: #6f8591; --rubber: #3c4a52;
     color-scheme: dark;
   }
 }
@@ -36,6 +42,7 @@
   --bg: #0d171d; --surface: #15232b; --ink: #e6eff3; --muted: #93a7b2; --line: #2a3d48;
   --accent: #3cc3cc; --accent-ink: #062126; --liquid: #2b7f95; --liquid-edge: #63c7df;
   --warn-bg: #3a2c0f; --warn-ink: #f5cf85; --bad-bg: #3d1915; --bad-ink: #ffb3a8; --barrel: #1b2d37;
+  --glass: #203640; --powder: #e8dcb8; --powder-edge: #a8955f; --cap: #6f8591; --rubber: #3c4a52;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -115,6 +122,15 @@ svg.syringe { display: block; width: 100%; min-width: 460px; height: auto; }
 .note.bad { background: var(--bad-bg); color: var(--bad-ink); }
 .notes { display: grid; gap: 8px; }
 .notes:empty { display: none; }
+.prep h2 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin: 0 0 4px; }
+.prep > p { margin: 0 0 14px; color: var(--muted); font-size: 15px; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+@media (max-width: 600px) { .steps { grid-template-columns: 1fr 1fr; } }
+.steps li { display: grid; gap: 6px; align-content: start; min-width: 0; text-align: center; }
+.steps svg { width: 100%; max-width: 140px; height: auto; margin: 0 auto; display: block; }
+.steps .t { font-weight: 700; font-size: 15px; }
+.steps .d { font-size: 14px; color: var(--muted); }
+.steps .d b { color: var(--accent); font-family: var(--font-num); }
 footer { font-size: 13px; color: var(--muted); }
 footer p { margin: 0 0 6px; max-width: 70ch; }
 </style>
@@ -169,6 +185,12 @@ footer p { margin: 0 0 6px; max-width: 70ch; }
   </section>
 
   <section class="card result" aria-live="polite" id="result"></section>
+
+  <section class="card prep" aria-label="Preparo">
+    <h2>Como preparar</h2>
+    <p>Os desenhos usam os valores que você preencheu acima.</p>
+    <ol class="steps" id="steps"></ol>
+  </section>
 
   <footer>
     <p>As "unidades" da seringa de insulina marcam volume (U-100: 100 unidades = 1 mL). Elas não são UI de GH.</p>
@@ -247,6 +269,7 @@ footer p { margin: 0 0 6px; max-width: 70ch; }
     var out = $("result");
     if (!(vial > 0) || !(water > 0) || !(dose > 0)) {
       out.innerHTML = '<div class="note warn">Preencha o frasco, a água e a dose com valores maiores que zero.</div>';
+      renderSteps(null);
       return;
     }
     var vialUI = state.vialU === "mg" ? vial * MG_TO_UI : vial;
@@ -288,6 +311,77 @@ footer p { margin: 0 0 6px; max-width: 70ch; }
         '<div><dt>Volume da dose</dt><dd>' + fmt(volML, 3) + ' mL</dd></div>' +
         '<div><dt>Doses no frasco</dt><dd>' + doses + '</dd></div>' +
       '</dl>';
+
+    renderSteps({
+      vial: fmt(vial, 2) + " " + state.vialU,
+      water: fmt(water, 2) + " mL",
+      conc: fmt(conc, 2) + " UI/mL",
+      pull: isML ? shown + " mL" : shown + " unidades",
+      level: Math.max(0.18, Math.min(0.85, water / 3)),
+      pullLevel: Math.min(1, marks / s.cap)
+    });
+  }
+
+  // ---------- Ilustrações de preparo ----------
+  var uid = 0;
+  function vialSVG(o) {
+    // o: { level 0..1, powder bool, label, extra (svg string drawn on top), dy }
+    var id = "vc" + (uid++);
+    var body = "M56 40 L56 46 Q34 50 34 62 L34 142 Q34 152 44 152 L96 152 Q106 152 106 142 L106 62 Q106 50 84 46 L84 40 Z";
+    var liqTop = 152 - (o.level || 0) * 90;
+    return '<g transform="translate(0,' + (o.dy || 0) + ')">' +
+      '<defs><clipPath id="' + id + '"><path d="' + body + '"/></clipPath></defs>' +
+      '<path d="' + body + '" fill="var(--glass)"/>' +
+      '<g clip-path="url(#' + id + ')">' +
+        (o.level ? '<rect x="30" y="' + liqTop + '" width="80" height="' + (156 - liqTop) + '" fill="var(--liquid)" opacity="0.85"/>' +
+          '<line x1="30" y1="' + liqTop + '" x2="110" y2="' + liqTop + '" stroke="var(--liquid-edge)" stroke-width="1.5"/>' : '') +
+        (o.powder ? '<path d="M34 153 Q46 130 60 136 Q70 124 82 134 Q96 130 106 153 Z" fill="var(--powder)" stroke="var(--powder-edge)" stroke-width="1"/>' : '') +
+        '<rect x="40" y="58" width="8" height="80" rx="4" fill="#ffffff" opacity="0.35"/>' +
+      '</g>' +
+      '<path d="' + body + '" fill="none" stroke="var(--muted)" stroke-width="1.5"/>' +
+      '<rect x="52" y="22" width="36" height="20" rx="3" fill="var(--cap)" stroke="var(--muted)" stroke-width="1"/>' +
+      '<rect x="58" y="16" width="24" height="8" rx="2" fill="var(--rubber)"/>' +
+      (o.label ? '<rect x="36" y="84" width="68" height="30" rx="3" fill="var(--surface)" stroke="var(--line)"/>' +
+        '<text x="70" y="104" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-weight="600" font-size="' + (o.label.length > 7 ? 11 : 13) + '" fill="var(--ink)">' + esc(o.label) + '</text>' : '') +
+      (o.extra || '') +
+    '</g>';
+  }
+  function miniSyringe(fill, liquidVar) {
+    // vertical syringe pointing down into the vial cap (cap rubber at y≈56 in parent coords)
+    var bt = 6, bb = 40, fy = bb - fill * (bb - bt - 4);
+    return '<g>' +
+      '<rect x="60" y="-4" width="20" height="4" rx="1.5" fill="var(--muted)"/>' +
+      '<rect x="67" y="0" width="6" height="' + (fy - 2) + '" fill="var(--line)" stroke="var(--muted)" stroke-width="0.8"/>' +
+      '<rect x="62" y="' + bt + '" width="16" height="' + (bb - bt) + '" rx="2" fill="var(--barrel)" stroke="var(--muted)" stroke-width="1.2"/>' +
+      '<rect x="63" y="' + fy + '" width="14" height="' + (bb - fy - 1) + '" fill="' + liquidVar + '"/>' +
+      '<rect x="62.5" y="' + (fy - 3) + '" width="15" height="4" fill="var(--ink)"/>' +
+      '<rect x="56" y="' + (bt + 2) + '" width="28" height="3" rx="1" fill="var(--muted)"/>' +
+      '<line x1="70" y1="' + bb + '" x2="70" y2="62" stroke="var(--muted)" stroke-width="1.5"/>' +
+    '</g>';
+  }
+  function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  function renderSteps(v) {
+    var d = v || { vial: "—", water: "—", conc: "—", pull: "—", level: 0.4, pullLevel: 0.4 };
+    var VB = 'viewBox="0 -10 140 210"';
+    var drops = '<g fill="var(--liquid-edge)">' +
+      '<path d="M88 112 q3 5 0 7 q-3 -2 0 -7z"/><path d="M92 128 q3 5 0 7 q-3 -2 0 -7z"/></g>';
+    var swirl = '<g fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round">' +
+      '<path d="M22 150 A52 18 0 0 0 118 150"/><path d="M110 143 L118 150 L108 155"/></g>';
+    var steps = [
+      { t: "1. Frasco", d: "Pó liofilizado de <b>" + esc(d.vial) + "</b>.",
+        svg: vialSVG({ dy: 40, powder: true, label: d.vial }) },
+      { t: "2. Diluir", d: "Injete <b>" + esc(d.water) + "</b> de água devagar, pela parede do frasco.",
+        svg: '<g>' + vialSVG({ dy: 40, powder: true, level: 0.22, extra: drops }) + miniSyringe(0.75, "var(--liquid)") + '</g>' },
+      { t: "3. Misturar", d: "Gire devagar até dissolver. Não agite. Fica com <b>" + esc(d.conc) + "</b>.",
+        svg: vialSVG({ dy: 40, level: d.level, label: d.conc, extra: swirl }) },
+      { t: "4. Aspirar", d: "Com a seringa escolhida, puxe até <b>" + esc(d.pull) + "</b>.",
+        svg: '<g>' + vialSVG({ dy: 40, level: Math.max(0.12, d.level - 0.08) }) + miniSyringe(Math.max(0.08, d.pullLevel), "var(--liquid)") + '</g>' }
+    ];
+    $("steps").innerHTML = steps.map(function (s) {
+      return '<li><svg ' + VB + ' role="img" aria-label="' + s.t + '">' + s.svg + '</svg>' +
+        '<span class="t">' + s.t + '</span><span class="d">' + s.d + '</span></li>';
+    }).join("");
   }
 
   function drawSyringe(s, val) {
