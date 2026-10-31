@@ -1,5 +1,17 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Calculadora de GH</title>
-<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Calcule até qual marca da seringa puxar a dose de GH (somatropina) a partir do frasco, da água de diluição e da dose receitada.">
+<meta name="theme-color" content="#0b7a83">
+<meta property="og:title" content="Calculadora de GH">
+<meta property="og:description" content="Descubra quantas unidades puxar na seringa para a sua dose de GH.">
+<meta property="og:type" content="website">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Mono:wght@500;600&display=swap">
@@ -46,6 +58,9 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; }
+[hidden] { display: none !important; }
 body {
   background: var(--bg); color: var(--ink);
   font-family: var(--font-body); font-size: 16px; line-height: 1.5;
@@ -134,7 +149,8 @@ svg.syringe { display: block; width: 100%; min-width: 460px; height: auto; }
 footer { font-size: 13px; color: var(--muted); }
 footer p { margin: 0 0 6px; max-width: 70ch; }
 </style>
-
+</head>
+<body>
 <div class="wrap">
   <header>
     <h1>Calculadora de GH</h1>
@@ -428,3 +444,10 @@ footer p { margin: 0 0 6px; max-width: 70ch; }
   calc();
 })();
 </script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+}
+</script>
+</body>
+</html>
