@@ -1,0 +1,430 @@
+<title>Calculadora de GH</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: single column "receita" card — inputs above, a big result with a drawn syringe below. */
+:root {
+  --bg: #eef3f5;
+  --surface: #ffffff;
+  --ink: #12222d;
+  --muted: #566874;
+  --line: #d3dee4;
+  --accent: #0b7a83;
+  --accent-ink: #ffffff;
+  --liquid: #8fd3e3;
+  --liquid-edge: #3aa6bf;
+  --warn-bg: #fff2d9;
+  --warn-ink: #7a4b00;
+  --bad-bg: #fde4e1;
+  --bad-ink: #8f1d12;
+  --barrel: #f7fbfc;
+  --glass: #e4eef2;
+  --powder: #f4ecd6;
+  --powder-edge: #c9b88a;
+  --cap: #9fb0ba;
+  --rubber: #5d6b74;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d171d; --surface: #15232b; --ink: #e6eff3; --muted: #93a7b2; --line: #2a3d48;
+    --accent: #3cc3cc; --accent-ink: #062126; --liquid: #2b7f95; --liquid-edge: #63c7df;
+    --warn-bg: #3a2c0f; --warn-ink: #f5cf85; --bad-bg: #3d1915; --bad-ink: #ffb3a8; --barrel: #1b2d37;
+    --glass: #203640; --powder: #e8dcb8; --powder-edge: #a8955f; --cap: #6f8591; --rubber: #3c4a52;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d171d; --surface: #15232b; --ink: #e6eff3; --muted: #93a7b2; --line: #2a3d48;
+  --accent: #3cc3cc; --accent-ink: #062126; --liquid: #2b7f95; --liquid-edge: #63c7df;
+  --warn-bg: #3a2c0f; --warn-ink: #f5cf85; --bad-bg: #3d1915; --bad-ink: #ffb3a8; --barrel: #1b2d37;
+  --glass: #203640; --powder: #e8dcb8; --powder-edge: #a8955f; --cap: #6f8591; --rubber: #3c4a52;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.5;
+  padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 640px; margin: 0 auto; display: grid; gap: 20px; }
+header h1 {
+  font-family: var(--font-display); font-weight: 800; font-size: clamp(28px, 6vw, 38px);
+  line-height: 1.1; margin: 0 0 6px; text-wrap: balance; letter-spacing: -0.01em;
+}
+header p { margin: 0; color: var(--muted); max-width: 60ch; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+form { display: grid; gap: 18px; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 520px) { .row { grid-template-columns: 1fr; } }
+.field { display: grid; gap: 6px; min-width: 0; }
+.field > label, .legend {
+  font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted);
+}
+.input {
+  display: flex; align-items: stretch; border: 1.5px solid var(--line); border-radius: 10px;
+  background: var(--surface); overflow: hidden;
+}
+.input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.input input {
+  flex: 1; min-width: 0; border: 0; background: transparent; color: var(--ink);
+  font-family: var(--font-num); font-size: 22px; font-weight: 600; padding: 10px 12px;
+  font-variant-numeric: tabular-nums;
+}
+.input input:focus { outline: none; }
+.unit { display: flex; align-items: center; padding: 0 12px; color: var(--muted); font-weight: 700; border-left: 1px solid var(--line); }
+.toggle { display: flex; border-left: 1px solid var(--line); }
+.toggle button {
+  border: 0; background: transparent; color: var(--muted); font: inherit; font-weight: 700;
+  padding: 0 12px; cursor: pointer;
+}
+.toggle button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.toggle button:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+.hint { font-size: 13px; color: var(--muted); }
+.syringes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+@media (max-width: 520px) { .syringes { grid-template-columns: 1fr; } }
+.syr { position: relative; }
+.syr input { position: absolute; opacity: 0; pointer-events: none; }
+.syr label {
+  display: grid; gap: 2px; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 10px;
+  cursor: pointer; height: 100%;
+}
+.syr label b { font-size: 15px; }
+.syr label span { font-size: 13px; color: var(--muted); }
+.syr input:checked + label { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
+.syr input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.result { display: grid; gap: 16px; }
+.big { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; }
+.big .label { width: 100%; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.big .num {
+  font-family: var(--font-num); font-weight: 600; font-size: clamp(56px, 16vw, 84px); line-height: 1;
+  color: var(--accent); font-variant-numeric: tabular-nums;
+}
+.big .what { font-family: var(--font-display); font-weight: 600; font-size: 20px; }
+.sentence { margin: 0; font-size: 17px; }
+.sentence strong { color: var(--accent); }
+.svgbox { overflow-x: auto; }
+svg.syringe { display: block; width: 100%; min-width: 460px; height: auto; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 0; }
+@media (max-width: 520px) { .stats { grid-template-columns: 1fr 1fr; } }
+.stats div { border-top: 1px solid var(--line); padding-top: 8px; min-width: 0; }
+.stats dt { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.stats dd { margin: 2px 0 0; font-family: var(--font-num); font-weight: 600; font-size: 18px; font-variant-numeric: tabular-nums; }
+.note { border-radius: 10px; padding: 10px 12px; font-size: 15px; }
+.note.warn { background: var(--warn-bg); color: var(--warn-ink); }
+.note.bad { background: var(--bad-bg); color: var(--bad-ink); }
+.notes { display: grid; gap: 8px; }
+.notes:empty { display: none; }
+.prep h2 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin: 0 0 4px; }
+.prep > p { margin: 0 0 14px; color: var(--muted); font-size: 15px; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+@media (max-width: 600px) { .steps { grid-template-columns: 1fr 1fr; } }
+.steps li { display: grid; gap: 6px; align-content: start; min-width: 0; text-align: center; }
+.steps svg { width: 100%; max-width: 140px; height: auto; margin: 0 auto; display: block; }
+.steps .t { font-weight: 700; font-size: 15px; }
+.steps .d { font-size: 14px; color: var(--muted); }
+.steps .d b { color: var(--accent); font-family: var(--font-num); }
+footer { font-size: 13px; color: var(--muted); }
+footer p { margin: 0 0 6px; max-width: 70ch; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Calculadora de GH</h1>
+    <p>Informe o frasco, a água usada na diluição, a dose receitada e a seringa. A calculadora mostra até qual marca puxar.</p>
+  </header>
+
+  <section class="card" aria-label="Dados">
+    <form id="form" novalidate>
+      <div class="row">
+        <div class="field">
+          <label for="vial">Frasco</label>
+          <div class="input">
+            <input id="vial" type="number" inputmode="decimal" min="0" step="any" value="32">
+            <div class="toggle" role="group" aria-label="Unidade do frasco" data-for="vial">
+              <button type="button" data-u="UI" aria-pressed="true">UI</button>
+              <button type="button" data-u="mg" aria-pressed="false">mg</button>
+            </div>
+          </div>
+          <span class="hint">Quanto GH tem o frasco, como está no rótulo.</span>
+        </div>
+        <div class="field">
+          <label for="water">Água de diluição</label>
+          <div class="input">
+            <input id="water" type="number" inputmode="decimal" min="0" step="any" value="2">
+            <span class="unit">mL</span>
+          </div>
+          <span class="hint">Água bacteriostática ou diluente colocado no frasco.</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="dose">Dose receitada</label>
+        <div class="input">
+          <input id="dose" type="number" inputmode="decimal" min="0" step="any" value="4">
+          <div class="toggle" role="group" aria-label="Unidade da dose" data-for="dose">
+            <button type="button" data-u="UI" aria-pressed="true">UI</button>
+            <button type="button" data-u="mg" aria-pressed="false">mg</button>
+          </div>
+        </div>
+        <span class="hint">Conversão usada: 1 mg de somatropina = 3 UI.</span>
+      </div>
+
+      <fieldset class="field" style="border:0;padding:0;margin:0">
+        <legend class="legend" style="margin-bottom:6px">Seringa</legend>
+        <div class="syringes" id="syringes"></div>
+      </fieldset>
+    </form>
+  </section>
+
+  <section class="card result" aria-live="polite" id="result"></section>
+
+  <section class="card prep" aria-label="Preparo">
+    <h2>Como preparar</h2>
+    <p>Os desenhos usam os valores que você preencheu acima.</p>
+    <ol class="steps" id="steps"></ol>
+  </section>
+
+  <footer>
+    <p>As "unidades" da seringa de insulina marcam volume (U-100: 100 unidades = 1 mL). Elas não são UI de GH.</p>
+    <p>Esta calculadora ajuda a conferir a conta e não substitui a orientação do médico ou do farmacêutico. Confirme a dose com eles antes de aplicar.</p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  var SYRINGES = [
+    { id: "u100-30", name: "Insulina U-100 · 0,3 mL", desc: "30 unidades, marca a cada 1", perML: 100, cap: 30, step: 1, labelEvery: 5, unit: "unidades" },
+    { id: "u100-50", name: "Insulina U-100 · 0,5 mL", desc: "50 unidades, marca a cada 1", perML: 100, cap: 50, step: 1, labelEvery: 10, unit: "unidades" },
+    { id: "u100-100", name: "Insulina U-100 · 1 mL", desc: "100 unidades, marca a cada 2", perML: 100, cap: 100, step: 2, labelEvery: 10, unit: "unidades" },
+    { id: "ml-1", name: "Seringa comum · 1 mL", desc: "Graduada em mL, marca a cada 0,01", perML: 1, cap: 1, step: 0.01, labelEvery: 0.1, unit: "mL" }
+  ];
+  var MG_TO_UI = 3;
+  var state = { vialU: "UI", doseU: "UI", syringe: "u100-50" };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var box = $("syringes");
+  SYRINGES.forEach(function (s) {
+    var d = document.createElement("div");
+    d.className = "syr";
+    d.innerHTML = '<input type="radio" name="syr" id="s-' + s.id + '" value="' + s.id + '">' +
+      '<label for="s-' + s.id + '"><b>' + s.name + '</b><span>' + s.desc + '</span></label>';
+    box.appendChild(d);
+  });
+
+  // Restore last values (per-viewer convenience)
+  try {
+    var saved = JSON.parse(localStorage.getItem("gh-calc") || "null");
+    if (saved) {
+      ["vial", "water", "dose"].forEach(function (k) { if (saved[k] != null) $(k).value = saved[k]; });
+      if (saved.vialU) state.vialU = saved.vialU;
+      if (saved.doseU) state.doseU = saved.doseU;
+      if (saved.syringe && SYRINGES.some(function (s) { return s.id === saved.syringe; })) state.syringe = saved.syringe;
+    }
+  } catch (e) {}
+
+  $("s-" + state.syringe).checked = true;
+  document.querySelectorAll(".toggle").forEach(function (g) {
+    var key = g.dataset.for === "vial" ? "vialU" : "doseU";
+    g.querySelectorAll("button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.dataset.u === state[key]));
+      b.addEventListener("click", function () {
+        state[key] = b.dataset.u;
+        g.querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+        calc();
+      });
+    });
+  });
+  $("form").addEventListener("input", function (e) {
+    if (e.target.name === "syr") state.syringe = e.target.value;
+    calc();
+  });
+  $("form").addEventListener("submit", function (e) { e.preventDefault(); });
+
+  function num(v) { return parseFloat(String(v).replace(",", ".")); }
+  function fmt(n, d) {
+    return n.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: d == null ? 2 : d });
+  }
+  function fmtFixed(n, d) {
+    return n.toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
+  }
+
+  function calc() {
+    var vial = num($("vial").value), water = num($("water").value), dose = num($("dose").value);
+    var s = SYRINGES.filter(function (x) { return x.id === state.syringe; })[0];
+    try {
+      localStorage.setItem("gh-calc", JSON.stringify({
+        vial: $("vial").value, water: $("water").value, dose: $("dose").value,
+        vialU: state.vialU, doseU: state.doseU, syringe: state.syringe
+      }));
+    } catch (e) {}
+
+    var out = $("result");
+    if (!(vial > 0) || !(water > 0) || !(dose > 0)) {
+      out.innerHTML = '<div class="note warn">Preencha o frasco, a água e a dose com valores maiores que zero.</div>';
+      renderSteps(null);
+      return;
+    }
+    var vialUI = state.vialU === "mg" ? vial * MG_TO_UI : vial;
+    var doseUI = state.doseU === "mg" ? dose * MG_TO_UI : dose;
+    var conc = vialUI / water;           // UI por mL
+    var volML = doseUI / conc;           // mL por dose
+    var marks = volML * s.perML;         // leitura na seringa
+    var isML = s.unit === "mL";
+    var shown = isML ? fmtFixed(marks, 2) : fmt(marks, 1);
+    var nearest = Math.round(marks / s.step) * s.step;
+    var doses = Math.floor(vialUI / doseUI + 1e-9);
+
+    var notes = [];
+    if (doseUI > vialUI) {
+      notes.push('<div class="note bad">A dose é maior do que todo o frasco. Confira os valores.</div>');
+    } else if (marks > s.cap + 1e-9) {
+      notes.push('<div class="note bad">A dose não cabe nesta seringa (máximo ' + (isML ? fmtFixed(s.cap, 2) + ' mL' : s.cap + ' unidades') +
+        '). Escolha uma seringa maior.</div>');
+    }
+    if (Math.abs(marks - nearest) > s.step * 0.02 && marks <= s.cap) {
+      var nearUI = (nearest / s.perML) * conc;
+      notes.push('<div class="note warn">' + shown + ' fica entre duas marcas desta seringa. A marca mais próxima é ' +
+        (isML ? fmtFixed(nearest, 2) + ' mL' : fmt(nearest, 2) + ' unidades') + ', que dá ' + fmt(nearUI, 2) +
+        ' UI. Uma seringa com marcas menores deixa a dose mais precisa.</div>');
+    }
+    if (marks > 0 && marks < s.step * 2 && marks <= s.cap) {
+      notes.push('<div class="note warn">O volume é muito pequeno para medir com precisão. Diluir com menos água ou usar uma seringa menor ajuda.</div>');
+    }
+
+    out.innerHTML =
+      '<div class="big"><span class="label">Puxe até</span><span class="num">' + shown + '</span>' +
+      '<span class="what">' + (isML ? "mL" : "unidades na seringa") + '</span></div>' +
+      '<p class="sentence">Na <b>' + s.name + '</b>, puxe até a marca <strong>' + shown + (isML ? " mL" : "") +
+      '</strong> para tomar <strong>' + fmt(doseUI, 2) + ' UI</strong> (' + fmt(doseUI / MG_TO_UI, 2) + ' mg) de GH.</p>' +
+      '<div class="svgbox">' + drawSyringe(s, Math.min(marks, s.cap)) + '</div>' +
+      '<div class="notes">' + notes.join("") + '</div>' +
+      '<dl class="stats">' +
+        '<div><dt>Concentração</dt><dd>' + fmt(conc, 2) + ' UI/mL</dd></div>' +
+        '<div><dt>Volume da dose</dt><dd>' + fmt(volML, 3) + ' mL</dd></div>' +
+        '<div><dt>Doses no frasco</dt><dd>' + doses + '</dd></div>' +
+      '</dl>';
+
+    renderSteps({
+      vial: fmt(vial, 2) + " " + state.vialU,
+      water: fmt(water, 2) + " mL",
+      conc: fmt(conc, 2) + " UI/mL",
+      pull: isML ? shown + " mL" : shown + " unidades",
+      level: Math.max(0.18, Math.min(0.85, water / 3)),
+      pullLevel: Math.min(1, marks / s.cap)
+    });
+  }
+
+  // ---------- Ilustrações de preparo ----------
+  var uid = 0;
+  function vialSVG(o) {
+    // o: { level 0..1, powder bool, label, extra (svg string drawn on top), dy }
+    var id = "vc" + (uid++);
+    var body = "M56 40 L56 46 Q34 50 34 62 L34 142 Q34 152 44 152 L96 152 Q106 152 106 142 L106 62 Q106 50 84 46 L84 40 Z";
+    var liqTop = 152 - (o.level || 0) * 90;
+    return '<g transform="translate(0,' + (o.dy || 0) + ')">' +
+      '<defs><clipPath id="' + id + '"><path d="' + body + '"/></clipPath></defs>' +
+      '<path d="' + body + '" fill="var(--glass)"/>' +
+      '<g clip-path="url(#' + id + ')">' +
+        (o.level ? '<rect x="30" y="' + liqTop + '" width="80" height="' + (156 - liqTop) + '" fill="var(--liquid)" opacity="0.85"/>' +
+          '<line x1="30" y1="' + liqTop + '" x2="110" y2="' + liqTop + '" stroke="var(--liquid-edge)" stroke-width="1.5"/>' : '') +
+        (o.powder ? '<path d="M34 153 Q46 130 60 136 Q70 124 82 134 Q96 130 106 153 Z" fill="var(--powder)" stroke="var(--powder-edge)" stroke-width="1"/>' : '') +
+        '<rect x="40" y="58" width="8" height="80" rx="4" fill="#ffffff" opacity="0.35"/>' +
+      '</g>' +
+      '<path d="' + body + '" fill="none" stroke="var(--muted)" stroke-width="1.5"/>' +
+      '<rect x="52" y="22" width="36" height="20" rx="3" fill="var(--cap)" stroke="var(--muted)" stroke-width="1"/>' +
+      '<rect x="58" y="16" width="24" height="8" rx="2" fill="var(--rubber)"/>' +
+      (o.label ? '<rect x="36" y="84" width="68" height="30" rx="3" fill="var(--surface)" stroke="var(--line)"/>' +
+        '<text x="70" y="104" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-weight="600" font-size="' + (o.label.length > 7 ? 11 : 13) + '" fill="var(--ink)">' + esc(o.label) + '</text>' : '') +
+      (o.extra || '') +
+    '</g>';
+  }
+  function miniSyringe(fill, liquidVar) {
+    // vertical syringe pointing down into the vial cap (cap rubber at y≈56 in parent coords)
+    var bt = 6, bb = 40, fy = bb - fill * (bb - bt - 4);
+    return '<g>' +
+      '<rect x="60" y="-4" width="20" height="4" rx="1.5" fill="var(--muted)"/>' +
+      '<rect x="67" y="0" width="6" height="' + (fy - 2) + '" fill="var(--line)" stroke="var(--muted)" stroke-width="0.8"/>' +
+      '<rect x="62" y="' + bt + '" width="16" height="' + (bb - bt) + '" rx="2" fill="var(--barrel)" stroke="var(--muted)" stroke-width="1.2"/>' +
+      '<rect x="63" y="' + fy + '" width="14" height="' + (bb - fy - 1) + '" fill="' + liquidVar + '"/>' +
+      '<rect x="62.5" y="' + (fy - 3) + '" width="15" height="4" fill="var(--ink)"/>' +
+      '<rect x="56" y="' + (bt + 2) + '" width="28" height="3" rx="1" fill="var(--muted)"/>' +
+      '<line x1="70" y1="' + bb + '" x2="70" y2="62" stroke="var(--muted)" stroke-width="1.5"/>' +
+    '</g>';
+  }
+  function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  function renderSteps(v) {
+    var d = v || { vial: "—", water: "—", conc: "—", pull: "—", level: 0.4, pullLevel: 0.4 };
+    var VB = 'viewBox="0 -10 140 210"';
+    var drops = '<g fill="var(--liquid-edge)">' +
+      '<path d="M88 112 q3 5 0 7 q-3 -2 0 -7z"/><path d="M92 128 q3 5 0 7 q-3 -2 0 -7z"/></g>';
+    var swirl = '<g fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round">' +
+      '<path d="M22 150 A52 18 0 0 0 118 150"/><path d="M110 143 L118 150 L108 155"/></g>';
+    var steps = [
+      { t: "1. Frasco", d: "Pó liofilizado de <b>" + esc(d.vial) + "</b>.",
+        svg: vialSVG({ dy: 40, powder: true, label: d.vial }) },
+      { t: "2. Diluir", d: "Injete <b>" + esc(d.water) + "</b> de água devagar, pela parede do frasco.",
+        svg: '<g>' + vialSVG({ dy: 40, powder: true, level: 0.22, extra: drops }) + miniSyringe(0.75, "var(--liquid)") + '</g>' },
+      { t: "3. Misturar", d: "Gire devagar até dissolver. Não agite. Fica com <b>" + esc(d.conc) + "</b>.",
+        svg: vialSVG({ dy: 40, level: d.level, label: d.conc, extra: swirl }) },
+      { t: "4. Aspirar", d: "Com a seringa escolhida, puxe até <b>" + esc(d.pull) + "</b>.",
+        svg: '<g>' + vialSVG({ dy: 40, level: Math.max(0.12, d.level - 0.08) }) + miniSyringe(Math.max(0.08, d.pullLevel), "var(--liquid)") + '</g>' }
+    ];
+    $("steps").innerHTML = steps.map(function (s) {
+      return '<li><svg ' + VB + ' role="img" aria-label="' + s.t + '">' + s.svg + '</svg>' +
+        '<span class="t">' + s.t + '</span><span class="d">' + s.d + '</span></li>';
+    }).join("");
+  }
+
+  function drawSyringe(s, val) {
+    var W = 640, H = 150, x0 = 70, x1 = 560, top = 42, bot = 92;
+    var scale = function (v) { return x0 + (v / s.cap) * (x1 - x0); };
+    var n = Math.round(s.cap / s.step);
+    var labelN = Math.round(s.labelEvery / s.step);
+    var halfN = labelN % 2 === 0 ? labelN / 2 : 0;
+    var ticks = "", labels = "";
+    for (var i = 0; i <= n; i++) {
+      var x = scale(i * s.step).toFixed(2);
+      var len = i % labelN === 0 ? 20 : (halfN && i % halfN === 0 ? 14 : 8);
+      ticks += '<line x1="' + x + '" y1="' + top + '" x2="' + x + '" y2="' + (top + len) + '"/>';
+      if (i % labelN === 0) {
+        var v = i * s.step;
+        labels += '<text x="' + x + '" y="' + (top - 8) + '">' + (s.unit === "mL" ? fmt(v, 1) : Math.round(v)) + '</text>';
+      }
+    }
+    var fx = scale(val);
+    return '<svg class="syringe" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Seringa preenchida até ' + fmt(val, 2) + '">' +
+      // needle + hub
+      '<line x1="4" y1="67" x2="46" y2="67" stroke="var(--muted)" stroke-width="2"/>' +
+      '<rect x="44" y="58" width="' + (x0 - 44) + '" height="18" rx="3" fill="var(--line)" stroke="var(--muted)" stroke-width="1"/>' +
+      // barrel
+      '<rect x="' + x0 + '" y="' + top + '" width="' + (x1 - x0) + '" height="' + (bot - top) + '" fill="var(--barrel)" stroke="var(--muted)" stroke-width="1.5"/>' +
+      // liquid
+      (val > 0 ? '<rect x="' + x0 + '" y="' + (top + 1) + '" width="' + (fx - x0).toFixed(2) + '" height="' + (bot - top - 2) + '" fill="var(--liquid)"/>' : '') +
+      // ticks
+      '<g stroke="var(--ink)" stroke-width="1">' + ticks + '</g>' +
+      '<g fill="var(--muted)" font-family="IBM Plex Mono, monospace" font-size="12" text-anchor="middle">' + labels + '</g>' +
+      // plunger stopper + rod
+      '<rect x="' + (fx).toFixed(2) + '" y="' + (top + 2) + '" width="12" height="' + (bot - top - 4) + '" fill="var(--ink)" rx="2"/>' +
+      '<rect x="' + (fx + 12).toFixed(2) + '" y="62" width="' + (x1 + 52 - fx - 12).toFixed(2) + '" height="10" fill="var(--line)" stroke="var(--muted)" stroke-width="1"/>' +
+      '<rect x="' + (x1 + 52) + '" y="40" width="10" height="54" rx="2" fill="var(--muted)"/>' +
+      // flange
+      '<rect x="' + (x1 - 2) + '" y="30" width="8" height="74" rx="2" fill="var(--line)" stroke="var(--muted)" stroke-width="1"/>' +
+      // marker
+      '<line x1="' + fx.toFixed(2) + '" y1="' + (bot + 4) + '" x2="' + fx.toFixed(2) + '" y2="' + (bot + 22) + '" stroke="var(--accent)" stroke-width="2.5"/>' +
+      '<text x="' + Math.max(x0 + 30, Math.min(fx, x1 - 30)).toFixed(2) + '" y="' + (bot + 40) + '" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-weight="600" font-size="15" fill="var(--accent)">' +
+        (s.unit === "mL" ? fmtFixed(val, 2) + " mL" : fmt(val, 1)) + '</text>' +
+      '</svg>';
+  }
+
+  calc();
+})();
+</script>
