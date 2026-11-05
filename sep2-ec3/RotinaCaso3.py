@@ -1459,14 +1459,37 @@ FATOR_CAP_NORMAL = 1.00
 FATOR_CAP_EMERGENCIA = 1.15
 
 # --------------------------------------------------------------
-# Limites de tensão (ONS - Submódulo 2.3)
-#   Normal     : mesma faixa usada no EC2 (0,95 a 1,05 pu)
-#   Emergência : faixa de emergência do ONS (0,90 a 1,05 pu)
-#                -> Se o grupo preferir ser mais conservador e usar
-#                   0,95-1,05 também em contingência, basta trocar aqui.
+# Limites de tensão POR NÍVEL (ONS - Submódulo 2.3, tabela de
+# tensões admissíveis a 60 Hz) - mesmos critérios do Relatório do EC2
+#
+#   Nível     Normal (pu)        Emergência (pu)
+#   500 kV    1,00 a 1,10        0,95 a 1,10   (475 a 550 kV)
+#   230 kV    0,95 a 1,05        0,90 a 1,05   (207 a 242 kV)
+#
+#   Normal     -> caso base (só a LT 9-10 fora)
+#   Emergência -> após a contingência de um circuito
 # --------------------------------------------------------------
-V_MIN_NORMAL, V_MAX_NORMAL = V_MIN, V_MAX        # 0,95 e 1,05 pu
-V_MIN_EMERG, V_MAX_EMERG = 0.90, 1.05
+NIVEL_KV = {1: 500, 2: 500, 3: 500, 4: 500, 5: 500, 6: 500, 7: 500,
+            8: 230, 9: 230, 10: 230, 11: 230, 12: 230, 13: 230}
+
+FAIXA_TENSAO = {
+    'normal':     {500: (1.00, 1.10), 230: (0.95, 1.05)},
+    'emergencia': {500: (0.95, 1.10), 230: (0.90, 1.05)},
+}
+
+# --------------------------------------------------------------
+# Cenário de partida = resultado final do EC2 (Relatório 02, seção 6)
+# O arquivo de dados é o caso base do EC2; aqui são aplicadas as
+# três ações de controle adotadas no EC2:
+#   - defasagem do trafo 7-10 (NCIR 12): -6° -> 0°
+#   - redespacho: PG13 de 20 para 40 MW
+#   - tensão de referência das barras 1, 3, 4 e 7: 1,00 -> 1,02 pu
+# --------------------------------------------------------------
+AJUSTES_EC2 = {
+    'DEF(GRAUS)': {12: 0.0},                            # por NCIR
+    'PGesp(PU)':  {13: 0.40},                           # por barra
+    'Vesp(PU)':   {1: 1.02, 3: 1.02, 4: 1.02, 7: 1.02}, # por barra
+}
 
 # --------------------------------------------------------------
 # Limites das ações de controle (Obs. 2.1 do EC3)
@@ -1474,7 +1497,8 @@ V_MIN_EMERG, V_MAX_EMERG = 0.90, 1.05
 TAP_LIM = (TAP_MIN, TAP_MAX)        # 0,9 a 1,1 pu (OLTC)
 DEF_LIM = (DEF_MIN, DEF_MAX)        # -30 a +30 graus (defasador)
 BSH_LIM = (0.0, 0.80)               # compensador da barra 11 (pu)
-VG_LIM = (V_MIN_NORMAL, V_MAX_NORMAL)   # tensão de referência dos geradores
+# Tensão de referência dos geradores: faixa NORMAL do nível da barra
+# (500 kV: 1,00-1,10 ; 230 kV: 0,95-1,05) -> ver limites_tensao()
 
 BARRA_COMPENSADOR = 11
 
@@ -1562,11 +1586,31 @@ def sistema_conexo(dbar, dcir_lig):
     return len(visitadas) == len(barras)
 
 
-def limites_tensao(condicao):
-    """Faixa de tensão a usar: 'normal' ou 'emergencia'."""
-    if condicao == 'normal':
-        return V_MIN_NORMAL, V_MAX_NORMAL
-    return V_MIN_EMERG, V_MAX_EMERG
+def limites_tensao(condicao, barra):
+    """Faixa (Vmin, Vmax) da barra, conforme seu nível de tensão
+    e a condição: 'normal' ou 'emergencia'."""
+    return FAIXA_TENSAO[condicao][NIVEL_KV[int(barra)]]
+
+
+def margem_tensao(barras_df, condicao):
+    """Menor folga de tensão do cenário (pu): min(V − Vmin, Vmax − V).
+    Valor negativo = violação."""
+    folgas = []
+    for _, r in barras_df.iterrows():
+        vmin, vmax = limites_tensao(condicao, r['Barra'])
+        folgas.append(min(r['V (pu)'] - vmin, vmax - r['V (pu)']))
+    return min(folgas)
+
+
+def aplicar_ajustes_ec2(dbar, dcir):
+    """Reproduz o ponto de operação final do EC2 (AJUSTES_EC2)."""
+    db, dc = dbar.copy(), dcir.copy()
+    for ncir, v in AJUSTES_EC2['DEF(GRAUS)'].items():
+        dc.loc[dc['NCIR'] == ncir, 'DEF(GRAUS)'] = v
+    for col in ('PGesp(PU)', 'Vesp(PU)'):
+        for barra, v in AJUSTES_EC2[col].items():
+            db.loc[db['BARRA'] == barra, col] = v
+    return db, dc
 
 
 def fator_capacidade(condicao):
@@ -1637,12 +1681,12 @@ def violacoes_ac(dbar, res, condicao):
     if not res['convergiu']:
         return ['NR NÃO CONVERGIU']
 
-    vmin, vmax = limites_tensao(condicao)
     fat = fator_capacidade(condicao)
     lista = []
 
     b = res['barras']
     for i, row in b.iterrows():
+        vmin, vmax = limites_tensao(condicao, row['Barra'])
         if row['V (pu)'] < vmin - 1e-6:
             lista.append(f"V{int(row['Barra'])}={row['V (pu)']:.4f}<{vmin}")
         elif row['V (pu)'] > vmax + 1e-6:
@@ -1905,6 +1949,8 @@ def analise_n1_ac(dbar, dcir_base, mostrar=True):
                 'Vmin (pu)': b['V (pu)'].min(),
                 'Barra Vmin': int(b.loc[b['V (pu)'].idxmin(), 'Barra']),
                 'Vmax (pu)': b['V (pu)'].max(),
+                'Barra Vmax': int(b.loc[b['V (pu)'].idxmax(), 'Barra']),
+                'Margem V (pu)': margem_tensao(b, cond),
                 'Maior carreg. (%)': f.loc[idx, 'Carregamento (%)'],
                 'Circuito + carreg.': f"{int(f.loc[idx,'De'])}-{int(f.loc[idx,'Para'])}"
                                       f"(C{int(f.loc[idx,'NCIR']):02d})",
@@ -2129,7 +2175,8 @@ def definir_controles(dbar, dcir):
     for i, row in dbar.iterrows():
         if row['TIPO'] in ('PV', 'SW'):
             ctrl.append({'tipo': 'V', 'nome': f"V{int(row['BARRA'])} (pu)", 'idx': i,
-                         'valor': float(row['Vesp(PU)']), 'lim': VG_LIM})
+                         'valor': float(row['Vesp(PU)']),
+                         'lim': limites_tensao('normal', row['BARRA'])})
     for ncir in NCIR_TAPS_AJUSTAVEIS:
         r = dcir.loc[dcir['NCIR'] == ncir].iloc[0]
         ctrl.append({'tipo': 'TAP', 'nome': f"TAP {rotulo(r)}", 'idx': ncir,
@@ -2229,7 +2276,6 @@ def controle_ac_slp(dbar, dcir_base, ctrl, u0, raio_inicial=None, mostrar=True):
             base_m, _ = medidas_cenario(db, dcir_s)
             if base_m is None:
                 continue
-            vmin, vmax = limites_tensao(cond)
             fat = fator_capacidade(cond)
             ramos = list(base_m['S'].keys())
 
@@ -2253,6 +2299,7 @@ def controle_ac_slp(dbar, dcir_base, ctrl, u0, raio_inicial=None, mostrar=True):
             # Tensões
             mv = MARGEM_SLP['V']
             for i in range(len(base_m['V'])):
+                vmin, vmax = limites_tensao(cond, dbar['BARRA'].iloc[i])
                 linhas_restr.append((dV[i], (vmax - mv) - base_m['V'][i]))
                 linhas_restr.append((-dV[i], base_m['V'][i] - (vmin + mv)))
             # Carregamentos (só os acima de 70 % do limite, para enxugar o LP)
@@ -2352,14 +2399,21 @@ def escrever_arquivo_dados(dbar, dcir, caminho, comentario=''):
 
 
 def grafico_ranking(rk, caminho):
+    """Ordenação das contingências: barras = maior carregamento (CC) de
+    cada contingência; o rótulo traz o ID(100%) e o ID(115%)."""
     d = rk.dropna(subset=['ID (100%)']).iloc[::-1]
-    fig, ax = plt.subplots(figsize=(8, 6))
-    ax.barh(d['Contingência'], d['ID (100%)'], color='#1f6fb4', label='ID (P_max = CAP)')
-    ax.barh(d['Contingência'], d['ID (115%)'], color='#d1495b', label='ID (P_max = 1,15·CAP)')
-    ax.set_xlabel('Índice de severidade  ID = Σ Sobrec')
-    ax.set_title('Ordenação das contingências — FP linearizado com perdas\n(LT 9-10 em manutenção)')
+    rot = [f"{c}  ID={a:.3f} | {b:.3f}" for c, a, b in
+           zip(d['Contingência'], d['ID (100%)'], d['ID (115%)'])]
+    cores = ['#d1495b' if a > 0 else '#1f6fb4' for a in d['ID (100%)']]
+    fig, ax = plt.subplots(figsize=(9, 6))
+    ax.barh(rot, d['Maior carreg. (%)'], color=cores)
+    ax.axvline(100, color='gray', ls=':', label='100 % CAP')
+    ax.axvline(100 * FATOR_CAP_EMERGENCIA, color='k', ls='--', label='115 % CAP')
+    ax.set_xlabel('Maior carregamento após a contingência — FP CC c/ perdas (% CAP)')
+    ax.set_title('Ordenação das contingências (ID 100% | ID 115%)\nLT 9-10 em manutenção')
     ax.legend(loc='lower right')
     ax.grid(axis='x', alpha=.3)
+    ax.tick_params(axis='y', labelsize=8)
     fig.tight_layout()
     fig.savefig(caminho, dpi=150)
     plt.show()
@@ -2377,16 +2431,12 @@ def grafico_n1(tab_antes, tab_depois, caminho):
     axs[0].set_ylabel('Maior carregamento (% CAP, potência aparente)')
     axs[0].set_title('Carregamento máximo em cada cenário (NR)')
     axs[0].legend(fontsize=8)
-    axs[1].plot(x, tab_antes['Vmin (pu)'], 'o-', color='#d1495b', label='Vmin antes')
-    axs[1].plot(x, tab_depois['Vmin (pu)'], 'o-', color='#2e8b57', label='Vmin após')
-    axs[1].plot(x, tab_antes['Vmax (pu)'], 's--', color='#d1495b', alpha=.5, label='Vmax antes')
-    axs[1].plot(x, tab_depois['Vmax (pu)'], 's--', color='#2e8b57', alpha=.5, label='Vmax após')
-    axs[1].axhline(V_MIN_EMERG, color='k', ls='--', lw=1)
-    axs[1].axhline(V_MAX_EMERG, color='k', ls='--', lw=1)
-    axs[1].axhline(V_MIN_NORMAL, color='gray', ls=':', lw=1)
+    axs[1].bar(x - w/2, tab_antes['Margem V (pu)'], w, label='Antes do controle', color='#d1495b')
+    axs[1].bar(x + w/2, tab_depois['Margem V (pu)'], w, label='Após o controle', color='#2e8b57')
+    axs[1].axhline(0, color='k', ls='--', lw=1, label='limite (margem = 0)')
     axs[1].set_xticks(x, tab_antes['Caso'], rotation=90, fontsize=7)
-    axs[1].set_ylabel('Tensão (pu)')
-    axs[1].set_title('Tensões mínima e máxima em cada cenário (NR)')
+    axs[1].set_ylabel('Menor folga de tensão (pu)  [< 0 = violação]')
+    axs[1].set_title('Folga de tensão em cada cenário (faixas do ONS por nível)')
     axs[1].legend(fontsize=8)
     fig.tight_layout()
     fig.savefig(caminho, dpi=150)
@@ -2405,6 +2455,15 @@ def main_ec3():
     dbar, dcir = ler_dados(ARQUIVO_ENTRADA)
     dcir[COL_STATUS] = dcir[COL_STATUS].astype(str).str.strip()
 
+    # Ponto de operação de partida: resultado final do EC2
+    dbar, dcir = aplicar_ajustes_ec2(dbar, dcir)
+    print("\nCenário de partida: ponto de operação FINAL do EC2 (Relatório 02):")
+    print("  - defasagem 7-10 = 0°, PG13 = 40 MW, Vesp barras 1, 3, 4 e 7 = 1,02 pu")
+    ec2 = fluxo_ac(dbar, dcir)
+    print(f"  conferência (LT 9-10 ainda ligada): PG3 = {ec2['Pg_sw']*S_BASE:.2f} MW "
+          f"(relatório: 95,73 MW), perdas = {ec2['perdas_MW']:.2f} MW (relatório: 4,18 MW)")
+    print(f"  violações nesse ponto (limites normais): {violacoes_ac(dbar, ec2, 'normal') or 'nenhuma'}")
+
     # ----------------------------------------------------------
     # 0) Caso base do EC3: cenário do EC2 com a LT 9-10 desligada
     # ----------------------------------------------------------
@@ -2412,13 +2471,15 @@ def main_ec3():
     dcir_base = desligar_circuitos(dcir, ncir_910)
     print(f"\nCircuito em manutenção: LT {LT_MANUTENCAO[0]}-{LT_MANUTENCAO[1]} "
           f"(NCIR {ncir_910}) -> marcado como 'D' no DCIR.")
-    print(f"Limites normais     : V em [{V_MIN_NORMAL}, {V_MAX_NORMAL}] pu, S ≤ 100 % CAP")
-    print(f"Limites emergência  : V em [{V_MIN_EMERG}, {V_MAX_EMERG}] pu, S ≤ {100*FATOR_CAP_EMERGENCIA:.0f} % CAP")
+    for cond, fat in (('normal', FATOR_CAP_NORMAL), ('emergencia', FATOR_CAP_EMERGENCIA)):
+        f5, f2 = FAIXA_TENSAO[cond][500], FAIXA_TENSAO[cond][230]
+        print(f"Limites {cond:<11s}: V 500 kV em {f5} pu, V 230 kV em {f2} pu, "
+              f"S ≤ {100*fat:.0f} % CAP")
     print("Limites de geração  : PG em [CGmin, CGmax] do DBAR")
 
     escrever_arquivo_dados(dbar, dcir_base,
                            os.path.join(PASTA_RESULTADOS, 'dados_sistema13B_EC3_LT9-10_manutencao.txt'),
-                           'Cenario do EC2 com a LT 9-10 desligada (diagnostico inicial).')
+                           'Cenario FINAL do EC2 com a LT 9-10 desligada (diagnostico inicial).')
 
     # ----------------------------------------------------------
     # 1) Validação do FP linearizado com perdas x NR (caso base)
@@ -2495,11 +2556,11 @@ def main_ec3():
         'Controle': [c['nome'] for c in ctrl],
         'Mínimo': [c['lim'][0] for c in ctrl],
         'Máximo': [c['lim'][1] for c in ctrl],
-        'Valor EC2': u_inicial,
+        'Valor (EC2 final)': u_inicial,
         'Após linprog CC': u0,
         'Final (arredondado)': u_final,
     })
-    tab_ctrl['Variação'] = tab_ctrl['Final (arredondado)'] - tab_ctrl['Valor EC2']
+    tab_ctrl['Variação'] = (tab_ctrl['Final (arredondado)'] - tab_ctrl['Valor (EC2 final)']).round(6)
     tab_ctrl['Alterado?'] = np.where(np.abs(tab_ctrl['Variação']) > 1e-9, 'SIM', '-')
     subtitulo("Conjunto de ações de controle proposto")
     imprimir_dataframe(tab_ctrl, casas=4)

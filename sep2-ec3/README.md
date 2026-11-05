@@ -14,11 +14,18 @@ Para rodar no Colab: faça upload do `.ipynb` e do `dados_sistema13B_EC2.txt` e 
 
 ## O que cada bloco novo faz
 
-1. **EC3-1 Configurações.** Define a LT 9-10 em manutenção e os limites:
-   - operação normal: V de 0,95 a 1,05 pu e S até 100 % da CAP;
-   - emergência: V de 0,90 a 1,05 pu e S até 115 % da CAP;
-   - geração: PG entre CGmin e CGmax;
-   - controles: tape de 0,9 a 1,1, defasador de ±30°, Bsh11 de 0 a 0,8 pu e V dos geradores de 0,95 a 1,05 pu.
+1. **EC3-1 Configurações.**
+   - **Ponto de partida = cenário FINAL do EC2** (Relatório 02): defasador 7-10 em 0°, PG13 = 40 MW e Vesp das barras 1, 3, 4 e 7 em 1,02 pu. A rotina aplica esses ajustes sobre o arquivo de dados e confere o resultado: PG3 = 95,73 MW e perdas de 4,18 MW, iguais ao relatório.
+   - LT 9-10 em manutenção (marcada como `D`).
+   - Faixas de tensão **por nível**, as mesmas do EC2 (ONS, Submódulo 2.3):
+
+     | Nível | Normal (caso base) | Emergência (contingência) |
+     |---|---|---|
+     | 500 kV (barras 1–7) | 1,00 a 1,10 pu | 0,95 a 1,10 pu |
+     | 230 kV (barras 8–13) | 0,95 a 1,05 pu | 0,90 a 1,05 pu |
+
+   - Carregamento: S até 100 % da CAP no caso base e até 115 % em contingência. Geração: PG entre CGmin e CGmax.
+   - Controles: tape de 0,9 a 1,1, defasador de ±30°, Bsh11 de 0 a 0,8 pu e V dos geradores dentro da faixa normal do nível da barra.
 2. **EC3-2 Utilitários.** Desliga circuitos pela coluna `LIG(L)DESL(D)`, detecta ilhamento e roda o NR do EC2 sem imprimir as iterações. Também lista as violações de tensão, de carregamento (S) e de PG.
 3. **EC3-3 FP linearizado com perdas ôhmicas.**
    - Fluxo no circuito: `P_km = (θk − θm + φ)/x`.
@@ -43,30 +50,30 @@ Para rodar no Colab: faça upload do `.ipynb` e do `dados_sistema13B_EC2.txt` e 
 
 ### Diagnóstico com a LT 9-10 fora (questão 1)
 
-- **Ordenação pelo ID.** Só a contingência **2-3** tem ID > 0. Ela leva o circuito 6-7 a 110,9 % no modelo CC (ID(100 %) = 0,1095). Com o limite de 115 %, o ID é zero em todas as contingências.
-- **NR, carregamento.** Nenhum circuito passa de 115 %. O pior caso é a contingência 2-3, com 6-7 a 108,1 %.
-- **NR, tensões.** Todas ficam dentro da faixa de emergência. A menor é V11 = 0,9235 pu, na contingência 8-11.
-- **NR, geração.** O **gerador da barra 3 (SW) passa de 110 MW em todos os 20 cenários**: 115,3 MW no caso base e até 118,2 MW na contingência 1-2.
-- **Conclusão.** O sistema **não atende** ao critério N-1.
+- **Índice de severidade (FP CC com perdas).** O ID é **zero em todas as 19 contingências**, tanto com 100 % quanto com 115 % da CAP. As mais severas, pelo maior carregamento, são **2-3** (1-2 a 95,8 %) e **1-2** (2-3 a 95,3 %).
+- **NR, carregamento e geração.** Nenhum circuito passa de 115 % (o maior é 96,8 %) e o PG3 fica entre 94,96 e 99,28 MW (limite de 110 MW).
+- **NR, tensões.** Já no caso base a **barra 9 fica em 1,0493 pu**, com folga de só 0,0007 pu. Em **6 contingências** a barra 9 passa de 1,05 pu:
 
-Observação: o gerador 3 já estava em 116,9 MW no próprio cenário do EC2, mas o diagnóstico do EC2 não verificava o limite de potência ativa.
+  | Contingência | V9 (pu) |
+  |---|---|
+  | 8-9 | 1,0553 |
+  | 9-12 | 1,0546 |
+  | 2-3 | 1,0516 |
+  | 1-4 | 1,0512 |
+  | 3-7 | 1,0501 |
+  | 11-12 | 1,0501 |
+
+- **Conclusão.** O sistema **não atende** ao critério N-1 do item 2.2.4.1.1. O problema é de sobretensão, não de carregamento, e por isso o ID (que só mede fluxo) não o detecta. Daí a exigência da Obs. 2.2 de propor as ações com o fluxo não linear.
 
 ### Ações de controle (questão 2)
 
 Arquivo: `resultados_EC3/acoes_de_controle.csv`
 
-| Controle | Valor do EC2 | Proposto |
-|---|---|---|
-| PG1 | 90,00 MW | **95,07 MW** |
-| PG7 | 60,00 MW | **64,06 MW** |
-| PG3 (SW) | 115,3 MW | 106,2 MW no caso base e no máximo 109,7 MW em contingência |
-| Demais controles | — | sem alteração |
+- **Etapa 1 (linprog CC).** Não propõe nenhum redespacho nem ajuste do defasador, porque não há sobrecarga de fluxo a eliminar.
+- **Etapa 2 (linprog + NR).** Uma única ação basta: **tape do trafo 6-9 de 0,950 para 0,957 pu**. Com tape menor que 1, o trafo eleva a tensão do lado de 230 kV; aproximar o tape de 1 reduz V9.
+- **Verificação final (NR).** **0 violações em todos os 20 cenários**. V9 no caso base fica em 1,0432 pu, e a maior tensão em contingência fica em 1,0482 pu (contingência 8-9). O reativo dos geradores fica dentro de −70 a +90 MVAr em todos os cenários.
 
-Com essas ações, a verificação N-1 pelo NR fica com **0 violações em todos os 20 cenários**.
-
-### Variante com tensão de emergência mais conservadora
-
-Se o grupo preferir 0,95 pu como mínimo também em emergência (`V_MIN_EMERG = 0.95` no bloco EC3-1), a contingência 8-11 passa a violar a tensão. Nesse caso a rotina inclui automaticamente o ajuste do **compensador da barra 11: Bsh11 de 0,01 para 0,103 pu**, junto com o mesmo redespacho.
+Isso é coerente com o Relatório 02, que já citava o tape do 6-9 como alternativa para conter a tensão da barra 9.
 
 ## Para quem for fazer o Anarede/PowerWorld (questão 3)
 
