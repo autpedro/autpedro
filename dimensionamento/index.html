@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Condutores e Eletrodutos</title>
+<meta name="description" content="Dimensionamento de condutores (capacidade de corrente, queda de tensão, seção mínima, neutro, PE e disjuntor) e de eletrodutos (taxa de ocupação), segundo a NBR 5410.">
+<meta name="theme-color" content="#a8461a">
+<meta property="og:title" content="Condutores e Eletrodutos">
+<meta property="og:description" content="Calcule a seção dos condutores e o diâmetro do eletroduto pela NBR 5410.">
+<meta property="og:type" content="website">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: duas fichas em coluna — 1) circuito → seção dos condutores; 2) eletroduto → diâmetro.
+   A ficha 1 alimenta a 2 com o botão "Levar para o eletroduto". */
+:root {
+  --bg: #f4f1ec;
+  --surface: #ffffff;
+  --sunk: #faf8f4;
+  --ink: #1d1b18;
+  --muted: #625b52;
+  --line: #ddd5c9;
+  --accent: #a8461a;
+  --accent-ink: #ffffff;
+  --accent-soft: #f6e4d8;
+  --ok-bg: #e2f1e4; --ok-ink: #1f5d2b;
+  --warn-bg: #fff2d9; --warn-ink: #7a4b00;
+  --bad-bg: #fde4e1; --bad-ink: #8f1d12;
+  --conduit: #efe9df; --conduit-edge: #8d8478;
+  --w-fase1: #26231f; --w-fase2: #c0392b; --w-fase3: #f5f2ec;
+  --w-neutro: #4f9fdc; --w-pe: #3a9a4a; --w-pe2: #e3c22a;
+  --font-display: "Archivo", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15120f; --surface: #1f1b17; --sunk: #191612; --ink: #f1ebe3; --muted: #b0a597; --line: #3a332b;
+    --accent: #e98a55; --accent-ink: #1f0d03; --accent-soft: #3a2416;
+    --ok-bg: #16301b; --ok-ink: #9fdcaa; --warn-bg: #3a2c0f; --warn-ink: #f5cf85; --bad-bg: #3d1915; --bad-ink: #ffb3a8;
+    --conduit: #2a251f; --conduit-edge: #8d8478;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15120f; --surface: #1f1b17; --sunk: #191612; --ink: #f1ebe3; --muted: #b0a597; --line: #3a332b;
+  --accent: #e98a55; --accent-ink: #1f0d03; --accent-soft: #3a2416;
+  --ok-bg: #16301b; --ok-ink: #9fdcaa; --warn-bg: #3a2c0f; --warn-ink: #f5cf85; --bad-bg: #3d1915; --bad-ink: #ffb3a8;
+  --conduit: #2a251f; --conduit-edge: #8d8478;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+[hidden] { display: none !important; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.5;
+  padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 720px; margin: 0 auto; display: grid; gap: 20px; }
+header h1 {
+  font-family: var(--font-display); font-weight: 800; font-size: clamp(28px, 6vw, 40px);
+  line-height: 1.08; margin: 0 0 6px; text-wrap: balance; letter-spacing: -0.015em;
+}
+header p { margin: 0; color: var(--muted); max-width: 62ch; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: grid; gap: 18px; }
+.card > h2 { font-family: var(--font-display); font-weight: 800; font-size: 22px; margin: 0; display: flex; gap: 10px; align-items: baseline; }
+.card > h2 .n { font-family: var(--font-num); font-size: 14px; color: var(--accent); border: 1.5px solid currentColor; border-radius: 6px; padding: 0 6px; }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 16px; align-items: start; }
+.grid .wide { grid-column: span 3; }
+.grid .half { grid-column: span 2; }
+@media (max-width: 600px) { .grid { grid-template-columns: 1fr 1fr; } .grid .wide, .grid .half { grid-column: span 2; } }
+@media (max-width: 380px) { .grid { grid-template-columns: 1fr; } .grid > * { grid-column: auto !important; } }
+label { display: grid; gap: 5px; font-weight: 700; font-size: 14px; }
+label small, .hint { font-weight: 400; color: var(--muted); font-size: 13px; line-height: 1.35; }
+input, select {
+  font: inherit; font-weight: 400; color: var(--ink); background: var(--sunk);
+  border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; width: 100%; min-width: 0;
+}
+input[type="number"], input.num { font-family: var(--font-num); }
+input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.unit { position: relative; }
+.unit input { padding-right: 44px; }
+.unit span { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 13px; pointer-events: none; }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--sunk); }
+.seg label { flex: 1; display: block; font-weight: 400; font-size: 14px; }
+.seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.seg span { display: block; text-align: center; padding: 9px 6px; cursor: pointer; }
+.seg input:checked + span { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -3px; }
+fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 5px; min-width: 0; }
+legend { font-weight: 700; font-size: 14px; padding: 0; margin-bottom: 5px; }
+.check { display: flex; gap: 8px; align-items: center; font-weight: 400; }
+.check input { width: auto; }
+button {
+  font: inherit; font-weight: 700; border-radius: 9px; padding: 9px 14px; cursor: pointer;
+  border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink);
+}
+button.ghost { background: transparent; color: var(--accent); }
+button.icon { padding: 6px 10px; background: transparent; color: var(--muted); border-color: var(--line); font-weight: 400; }
+
+/* Resultado */
+.result { border-top: 1px dashed var(--line); padding-top: 18px; display: grid; gap: 16px; }
+.big { display: flex; flex-wrap: wrap; gap: 10px 26px; align-items: flex-end; }
+.big .k { font-size: 13px; color: var(--muted); }
+.big .v { font-family: var(--font-num); font-weight: 600; font-size: clamp(30px, 8vw, 44px); line-height: 1; color: var(--accent); }
+.big .v small { font-size: 0.45em; color: var(--ink); margin-left: 4px; }
+.big .v2 { font-family: var(--font-num); font-weight: 600; font-size: 22px; line-height: 1.1; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 700; }
+td.num, th.num { text-align: right; font-family: var(--font-num); white-space: nowrap; }
+tr.win td { background: var(--accent-soft); font-weight: 700; }
+.tbl { overflow-x: auto; }
+.note { border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+.note.ok { background: var(--ok-bg); color: var(--ok-ink); }
+.note.warn { background: var(--warn-bg); color: var(--warn-ink); }
+.note.bad { background: var(--bad-bg); color: var(--bad-ink); }
+details { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--sunk); }
+details summary { cursor: pointer; font-weight: 700; }
+details[open] summary { margin-bottom: 8px; }
+details p, details ul { margin: 6px 0; font-size: 14px; }
+.formula { font-family: var(--font-num); font-size: 13px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; overflow-x: auto; white-space: nowrap; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+/* Eletroduto */
+.rows { display: grid; gap: 8px; }
+.crow { display: grid; grid-template-columns: 1.1fr 1fr 0.8fr 1fr auto; gap: 8px; align-items: end; }
+.crow .lab { display: none; }
+.crow-head { display: grid; grid-template-columns: 1.1fr 1fr 0.8fr 1fr auto; gap: 8px; font-size: 12px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding-right: 42px; }
+.crow-head span:last-child { display: none; }
+@media (max-width: 560px) {
+  .crow-head { display: none; }
+  .crow { grid-template-columns: 1fr 1fr; padding: 10px; border: 1px solid var(--line); border-radius: 10px; }
+  .crow .lab { display: block; font-size: 12px; color: var(--muted); font-weight: 700; }
+  .crow > button { grid-column: span 2; }
+}
+.crow label { gap: 2px; }
+.swatch { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--conduit-edge); vertical-align: -1px; margin-right: 4px; }
+.conduit-out { display: grid; grid-template-columns: 220px 1fr; gap: 20px; align-items: center; }
+@media (max-width: 560px) { .conduit-out { grid-template-columns: 1fr; justify-items: center; } .conduit-out > div { width: 100%; } }
+.gauge { height: 12px; border-radius: 6px; background: var(--sunk); border: 1px solid var(--line); position: relative; overflow: hidden; }
+.gauge i { position: absolute; inset: 0 auto 0 0; background: var(--accent); }
+.gauge b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); }
+footer { color: var(--muted); font-size: 13px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Condutores e eletrodutos</h1>
+    <p>Seção do condutor pelos critérios da NBR 5410 (capacidade de corrente, queda de tensão e seção mínima), com neutro, PE e disjuntor. Depois, o eletroduto pela taxa de ocupação.</p>
+  </header>
+
+  <!-- ===================== 1. CONDUTORES ===================== -->
+  <section class="card" aria-labelledby="t1">
+    <h2 id="t1"><span class="n">1</span> Condutores do circuito</h2>
+    <form id="fc" class="grid" onsubmit="return false">
+      <fieldset class="wide">
+        <legend>Sistema</legend>
+        <div class="seg" role="radiogroup">
+          <label><input type="radio" name="sis" value="FN" checked><span>F + N</span></label>
+          <label><input type="radio" name="sis" value="FF"><span>F + F</span></label>
+          <label><input type="radio" name="sis" value="3F"><span>3F</span></label>
+          <label><input type="radio" name="sis" value="3FN"><span>3F + N</span></label>
+        </div>
+      </fieldset>
+
+      <label>Tensão do circuito
+        <span class="unit"><input id="tensao" class="num" inputmode="decimal" value="127"><span>V</span></span>
+        <small id="tensaoHint">Fase-neutro</small>
+      </label>
+
+      <fieldset>
+        <legend>Dado de carga</legend>
+        <div class="seg">
+          <label><input type="radio" name="modo" value="P" checked><span>Potência</span></label>
+          <label><input type="radio" name="modo" value="I"><span>Corrente</span></label>
+        </div>
+      </fieldset>
+
+      <label id="lblCarga">Potência ativa
+        <span class="unit"><input id="carga" class="num" inputmode="decimal" value="4400"><span id="cargaU">W</span></span>
+      </label>
+
+      <label>Fator de potência
+        <input id="fp" class="num" inputmode="decimal" value="1">
+      </label>
+
+      <label>Comprimento
+        <span class="unit"><input id="comp" class="num" inputmode="decimal" value="20"><span>m</span></span>
+        <small>Do quadro até a carga (só ida)</small>
+      </label>
+
+      <label>Queda máxima
+        <span class="unit"><input id="dvmax" class="num" inputmode="decimal" value="4"><span>%</span></span>
+        <small>Circuito terminal: 4 %</small>
+      </label>
+
+      <label class="wide">Método de instalação
+        <select id="metodo">
+          <option value="A1">A1 — condutores isolados em eletroduto embutido em parede termicamente isolante</option>
+          <option value="A2">A2 — cabo multipolar em eletroduto embutido em parede termicamente isolante</option>
+          <option value="B1" selected>B1 — condutores isolados ou cabos unipolares em eletroduto (aparente ou embutido em alvenaria)</option>
+          <option value="B2">B2 — cabo multipolar em eletroduto (aparente ou embutido em alvenaria)</option>
+          <option value="C">C — cabos uni ou multipolares fixados diretamente na parede</option>
+          <option value="D">D — cabos em eletroduto enterrado no solo</option>
+        </select>
+      </label>
+
+      <label>Isolação
+        <select id="isol">
+          <option value="PVC" selected>PVC (70 °C)</option>
+          <option value="EPR">EPR / XLPE (90 °C)</option>
+        </select>
+      </label>
+
+      <label><span id="lblTemp">Temperatura ambiente</span>
+        <select id="temp"></select>
+      </label>
+
+      <label>Circuitos agrupados
+        <select id="agrup"></select>
+        <small>No mesmo eletroduto ou feixe, contando este</small>
+      </label>
+
+      <label>Tipo de circuito
+        <select id="tipo">
+          <option value="1.5">Iluminação (mín. 1,5 mm²)</option>
+          <option value="2.5" selected>Força / TUG / TUE (mín. 2,5 mm²)</option>
+        </select>
+      </label>
+
+      <label class="half check" style="align-self:end"><input type="checkbox" id="harm"> Harmônicas acima de 15 % (neutro não pode ser reduzido)</label>
+    </form>
+
+    <div class="result" id="res1" aria-live="polite"></div>
+  </section>
+
+  <!-- ===================== 2. ELETRODUTO ===================== -->
+  <section class="card" aria-labelledby="t2">
+    <h2 id="t2"><span class="n">2</span> Eletroduto</h2>
+    <div class="grid">
+      <label class="half">Tipo de condutor
+        <select id="ctipo">
+          <option value="750">Condutor isolado PVC 450/750 V (fio/cabo flexível)</option>
+          <option value="1kv">Cabo unipolar 0,6/1 kV (PVC, EPR ou XLPE)</option>
+        </select>
+        <small>Muda o diâmetro externo típico. Se tiver o catálogo, digite o valor exato.</small>
+      </label>
+      <label>Eletroduto
+        <select id="etipo">
+          <option value="rig">PVC rígido roscável</option>
+          <option value="flex">PVC flexível corrugado</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="rows">
+      <div class="crow-head"><span>Função</span><span>Seção</span><span>Qtd.</span><span>Ø externo</span><span></span></div>
+      <div id="rows" class="rows"></div>
+    </div>
+    <div class="actions">
+      <button type="button" class="ghost" id="addRow">+ Adicionar condutor</button>
+      <button type="button" class="icon" id="clearRows">Limpar lista</button>
+    </div>
+
+    <div class="result" id="res2" aria-live="polite"></div>
+  </section>
+
+  <details>
+    <summary>Como o cálculo é feito</summary>
+    <p><b>Corrente de projeto.</b> Monofásico/bifásico: I<sub>B</sub> = P / (V · FP). Trifásico: I<sub>B</sub> = P / (√3 · V · FP), com V entre fases.</p>
+    <p><b>Capacidade de corrente.</b> Tabelas 36 (PVC) e 37 (EPR/XLPE) da NBR 5410, cobre, com 2 condutores carregados (F+N, F+F) ou 3 (3F, 3F+N). A corrente admissível é corrigida pela temperatura (tabela 40) e pelo agrupamento (tabela 42; no método D, tabela 45 para eletrodutos enterrados lado a lado): I<sub>z</sub> = I<sub>tab</sub> · FCT · FCA ≥ I<sub>B</sub>.</p>
+    <p><b>Queda de tensão.</b> Com a resistência do cobre na temperatura máxima de serviço (70 °C ou 90 °C) e reatância típica de 0,10 Ω/km:</p>
+    <div class="formula">ΔV% = k · I<sub>B</sub> · L · (R·cosφ + X·senφ) / V · 100 &nbsp;&nbsp; k = 2 (F+N, F+F) ou √3 (trifásico)</div>
+    <p><b>Seção mínima</b> (tabela 47): 1,5 mm² em iluminação, 2,5 mm² em força.</p>
+    <p><b>Neutro</b> (6.2.6.2): igual à fase em circuitos monofásicos e até 25 mm²; acima disso, em trifásico equilibrado e com harmônicas até 15 %, pode ser reduzido (tabela 48).</p>
+    <p><b>PE</b> (tabela 58): S ≤ 16 → igual à fase; 16 &lt; S ≤ 35 → 16 mm²; S &gt; 35 → S/2 (próxima seção padronizada).</p>
+    <p><b>Disjuntor.</b> I<sub>B</sub> ≤ I<sub>n</sub> ≤ I<sub>z</sub>. Disjuntores padronizados (NBR NM 60898 / IEC 60947-2) já garantem I<sub>2</sub> ≤ 1,45·I<sub>z</sub>. Se nenhum valor comercial cabe, a seção sobe. Curto-circuito e seletividade não são verificados aqui.</p>
+    <p><b>Eletroduto</b> (6.2.11.1.6): a soma das áreas externas dos condutores não pode passar de 53 % da área interna com 1 condutor, 31 % com 2 e 40 % com 3 ou mais.</p>
+    <div class="formula">Ø<sub>int,mín</sub> = √( 4 · Σ(π·d²/4) / (π · taxa) )</div>
+    <p>Diâmetros externos dos condutores e internos dos eletrodutos são valores típicos de catálogo, arredondados. Compare o Ø interno mínimo com o catálogo do fabricante que você vai usar.</p>
+  </details>
+
+  <footer>Ferramenta de estudo. O projeto real deve ser verificado por profissional habilitado, com as tabelas completas da NBR 5410 e os catálogos dos fabricantes.</footer>
+</div>
+
+<script>
+"use strict";
+// ---------- Dados (NBR 5410, cobre) ----------
+const S = [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240, 300];
+const MET = ["A1", "A2", "B1", "B2", "C", "D"];
+// Para cada seção: [A1-2, A1-3, A2-2, A2-3, B1-2, B1-3, B2-2, B2-3, C-2, C-3, D-2, D-3]
+const IZ = {
+  PVC: [
+    [14.5,13.5,14,13,17.5,15.5,16.5,15,19.5,17.5,22,18],
+    [19.5,18,18.5,17.5,24,21,23,20,27,24,29,24],
+    [26,24,25,23,32,28,30,27,36,32,38,31],
+    [34,31,32,29,41,36,38,34,46,41,47,39],
+    [46,42,43,39,57,50,52,46,63,57,63,52],
+    [61,56,57,52,76,68,69,62,85,76,81,67],
+    [80,73,75,68,101,89,90,80,112,96,104,86],
+    [99,89,92,83,125,110,111,99,138,119,125,103],
+    [119,108,110,99,151,134,133,118,168,144,148,122],
+    [151,136,139,125,192,171,168,149,213,184,183,151],
+    [182,164,167,150,232,207,201,179,258,223,216,179],
+    [210,188,192,172,269,239,232,206,299,259,246,203],
+    [240,216,219,196,309,275,265,236,344,299,278,230],
+    [273,245,248,223,353,314,300,268,392,341,312,258],
+    [321,286,291,261,415,370,351,313,461,403,361,297],
+    [367,328,334,298,477,426,401,358,530,464,408,336]
+  ],
+  EPR: [
+    [19,17,18.5,16.5,23,20,22,19.5,24,22,26,22],
+    [26,23,25,22,31,28,30,26,33,30,34,29],
+    [35,31,33,30,42,37,40,35,45,40,44,37],
+    [45,40,42,38,54,48,51,44,58,52,56,46],
+    [61,54,57,51,75,66,69,60,80,71,73,61],
+    [81,73,76,68,100,88,91,80,107,96,95,79],
+    [106,95,99,89,133,117,119,105,138,119,121,101],
+    [131,117,121,109,164,144,146,128,171,147,146,122],
+    [158,141,145,130,198,175,175,154,209,179,173,144],
+    [200,179,183,164,253,222,221,194,269,229,213,178],
+    [241,216,220,197,306,269,265,233,328,278,252,211],
+    [278,249,253,227,354,312,305,268,382,322,287,240],
+    [318,285,290,259,393,342,334,300,441,371,324,271],
+    [362,324,329,295,449,384,384,340,506,424,363,304],
+    [424,380,386,346,528,450,459,398,599,500,419,351],
+    [486,435,442,396,603,514,532,455,693,576,474,396]
+  ]
+};
+// Tabela 40 — fator de correção de temperatura
+const FCT = {
+  ar: {
+    PVC: {10:1.22,15:1.17,20:1.12,25:1.06,30:1,35:0.94,40:0.87,45:0.79,50:0.71,55:0.61,60:0.50},
+    EPR: {10:1.15,15:1.12,20:1.08,25:1.04,30:1,35:0.96,40:0.91,45:0.87,50:0.82,55:0.76,60:0.71,65:0.65,70:0.58,75:0.50,80:0.41}
+  },
+  solo: {
+    PVC: {10:1.10,15:1.05,20:1,25:0.95,30:0.89,35:0.84,40:0.77,45:0.71,50:0.63,55:0.55,60:0.45},
+    EPR: {10:1.07,15:1.04,20:1,25:0.96,30:0.93,35:0.89,40:0.85,45:0.80,50:0.76,55:0.71,60:0.65,65:0.60,70:0.53,75:0.46,80:0.38}
+  }
+};
+// Tabela 42 (feixe, embutido ou em conduto fechado) e tabela 45 (eletrodutos enterrados, distância nula)
+function fca(n, metodo) {
+  if (metodo === "D") return [1, 1, 0.85, 0.75, 0.70, 0.65, 0.60][Math.min(n, 6)];
+  if (n <= 8) return [1, 1, 0.80, 0.70, 0.65, 0.60, 0.57, 0.54, 0.52][n];
+  if (n <= 11) return 0.50;
+  if (n <= 15) return 0.45;
+  if (n <= 19) return 0.41;
+  return 0.38;
+}
+const NEUTRO_RED = {35:25, 50:25, 70:35, 95:50, 120:70, 150:70, 185:95, 240:120, 300:150}; // tabela 48
+const DISJ = [6,10,13,16,20,25,32,40,50,63,70,80,90,100,125,150,160,175,200,225,250,300,320,350,400,500,630];
+const RHO20 = 0.017241, ALFA = 0.00393, XKM = 0.10; // Ω·mm²/m, 1/°C, Ω/km
+
+// Diâmetros externos típicos (mm)
+const DEXT = {
+  "750": {1.5:3.0,2.5:3.6,4:4.2,6:4.8,10:6.1,16:7.4,25:9.1,35:10.4,50:12.4,70:14.3,95:16.4,120:18.6,150:20.6,185:23.0,240:26.1,300:29.2},
+  "1kv": {1.5:5.8,2.5:6.3,4:6.9,6:7.4,10:8.4,16:9.4,25:11.1,35:12.2,50:13.9,70:15.8,95:17.8,120:19.6,150:21.8,185:24.3,240:27.4,300:30.2}
+};
+// Eletrodutos: [nome, Ø interno aproximado em mm]
+const ELET = {
+  rig: [["DN 20 (½\")",16.1],["DN 25 (¾\")",21.0],["DN 32 (1\")",26.8],["DN 40 (1¼\")",35.0],["DN 50 (1½\")",39.8],["DN 60 (2\")",50.2],["DN 75 (2½\")",64.1],["DN 85 (3\")",75.6],["DN 110 (4\")",97.4]],
+  flex: [["DN 20",15.4],["DN 25",19.0],["DN 32",24.8],["DN 40",31.0],["DN 50",40.0]]
+};
+
+// ---------- Utilidades ----------
+const $ = (id) => document.getElementById(id);
+const num = (v) => { const x = parseFloat(String(v).replace(/\s/g, "").replace(",", ".")); return isFinite(x) ? x : NaN; };
+const fmt = (x, d = 1) => x.toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtS = (s) => s.toLocaleString("pt-BR");
+const radio = (name) => document.querySelector(`input[name="${name}"]:checked`).value;
+const nextStd = (x) => S.find((s) => s >= x - 1e-9) ?? null;
+
+// ---------- Preenche selects ----------
+function fillTemp() {
+  const meth = $("metodo").value, iso = $("isol").value;
+  const tab = FCT[meth === "D" ? "solo" : "ar"][iso];
+  const prev = $("temp").dataset.touched ? $("temp").value : (meth === "D" ? "20" : "30");
+  $("temp").innerHTML = Object.keys(tab).map((t) => `<option value="${t}">${t} °C</option>`).join("");
+  $("temp").value = tab[prev] !== undefined ? prev : (meth === "D" ? "20" : "30");
+  $("lblTemp").textContent = meth === "D" ? "Temperatura do solo" : "Temperatura ambiente";
+}
+$("agrup").innerHTML = Array.from({ length: 20 }, (_, i) => `<option value="${i + 1}">${i + 1}${i === 19 ? " ou mais" : ""}</option>`).join("");
+
+// ---------- Cálculo dos condutores ----------
+let last = null;
+function calc1() {
+  const sis = radio("sis"), modo = radio("modo");
+  const V = num($("tensao").value), carga = num($("carga").value), fp = num($("fp").value);
+  const L = num($("comp").value), dvmax = num($("dvmax").value);
+  const meth = $("metodo").value, iso = $("isol").value, T = $("temp").value;
+  const ngrp = +$("agrup").value, smin = +$("tipo").value, harm = $("harm").checked;
+  const out = $("res1");
+  const tri = sis === "3F" || sis === "3FN";
+
+  const errs = [];
+  if (!(V > 0)) errs.push("Informe a tensão.");
+  if (!(carga > 0)) errs.push(modo === "P" ? "Informe a potência." : "Informe a corrente.");
+  if (!(fp > 0 && fp <= 1)) errs.push("O fator de potência fica entre 0 e 1.");
+  if (!(L > 0)) errs.push("Informe o comprimento.");
+  if (!(dvmax > 0)) errs.push("Informe a queda máxima admitida.");
+  if (errs.length) { out.dataset.html = ""; out.innerHTML = `<div class="note warn">${errs.join(" ")}</div>`; last = null; return; }
+
+  const Ib = modo === "I" ? carga : carga / ((tri ? Math.sqrt(3) : 1) * V * fp);
+  const nc = tri ? 3 : 2;
+  const col = MET.indexOf(meth) * 2 + (nc === 3 ? 1 : 0);
+  const fct = FCT[meth === "D" ? "solo" : "ar"][iso][T];
+  const fa = fca(ngrp, meth);
+  const theta = iso === "PVC" ? 70 : 90;
+  const rhoT = RHO20 * (1 + ALFA * (theta - 20));
+  const sen = Math.sqrt(Math.max(0, 1 - fp * fp));
+  const k = tri ? Math.sqrt(3) : 2;
+  const dvPct = (s) => k * Ib * (L / 1000) * ((rhoT * 1000 / s) * fp + XKM * sen) / V * 100;
+  const izOf = (i) => IZ[iso][i][col] * fct * fa;
+
+  const iCap = S.findIndex((_, i) => izOf(i) >= Ib);
+  const iDv = S.findIndex((s) => dvPct(s) <= dvmax);
+  const iMin = S.indexOf(smin);
+  if (iCap < 0 || iDv < 0) {
+    out.dataset.html = ""; out.innerHTML = `<div class="note bad">Nenhuma seção até 300 mm² atende ${iCap < 0 ? "a corrente de " + fmt(Ib) + " A" : "a queda de " + fmt(dvmax) + " %"} nessas condições. Divida a carga em mais circuitos, use condutores em paralelo ou reduza o comprimento.</div>`;
+    last = null; return;
+  }
+  let idx = Math.max(iCap, iDv, iMin);
+  const crit = [[iCap, "capacidade de corrente"], [iDv, "queda de tensão"], [iMin, "seção mínima"]]
+    .filter(([i]) => i === idx).map(([, n]) => `<b>${n}</b>`).join(" e ");
+
+  // Disjuntor: Ib ≤ In ≤ Iz; se não houver, sobe a seção
+  let In = null, bumped = false;
+  while (idx < S.length) {
+    const iz = izOf(idx);
+    In = DISJ.find((d) => d >= Ib - 1e-9 && d <= iz + 1e-9) ?? null;
+    if (In) break;
+    idx++; bumped = true;
+  }
+  if (!In) { out.dataset.html = ""; out.innerHTML = `<div class="note bad">Não há disjuntor comercial entre I<sub>B</sub> e I<sub>z</sub> até 300 mm².</div>`; last = null; return; }
+
+  const sF = S[idx], iz = izOf(idx), dv = dvPct(sF);
+  const temNeutro = sis === "FN" || sis === "3FN";
+  let sN = null;
+  if (temNeutro) sN = (sis === "3FN" && !harm && sF > 25) ? NEUTRO_RED[sF] : sF;
+  const sPE = sF <= 16 ? sF : sF <= 35 ? 16 : nextStd(sF / 2);
+
+  last = { sis, sF, sN, sPE, nf: sis === "FN" ? 1 : sis === "FF" ? 2 : 3 };
+
+  const rowsC = [
+    ["Capacidade de corrente", iCap, `I<sub>z</sub> = ${fmt(izOf(iCap))} A ≥ ${fmt(Ib)} A`],
+    ["Queda de tensão", iDv, `ΔV = ${fmt(dvPct(S[iDv]), 2)} % ≤ ${fmt(dvmax)} %`],
+    ["Seção mínima", iMin, $("tipo").selectedOptions[0].text.split(" (")[0]]
+  ];
+  const winIdx = Math.max(iCap, iDv, iMin);
+
+  const html = `
+    <div class="big">
+      <div><div class="k">Seção da fase</div><div class="v">${fmtS(sF)}<small>mm²</small></div></div>
+      ${temNeutro ? `<div><div class="k">Neutro</div><div class="v2">${fmtS(sN)} mm²</div></div>` : ""}
+      <div><div class="k">PE</div><div class="v2">${fmtS(sPE)} mm²</div></div>
+      <div><div class="k">Disjuntor</div><div class="v2">${In} A</div></div>
+    </div>
+    <div class="tbl"><table>
+      <thead><tr><th>Critério</th><th class="num">Seção</th><th>Verificação</th></tr></thead>
+      <tbody>${rowsC.map(([n, i, t]) => `<tr class="${i === winIdx ? "win" : ""}"><td>${n}</td><td class="num">${fmtS(S[i])} mm²</td><td>${t}</td></tr>`).join("")}</tbody>
+    </table></div>
+    <div class="tbl"><table>
+      <tbody>
+        <tr><td>Corrente de projeto I<sub>B</sub></td><td class="num">${fmt(Ib, 2)} A</td></tr>
+        <tr><td>Condutores carregados</td><td class="num">${nc}</td></tr>
+        <tr><td>I<sub>tabela</sub> (${meth}, ${iso === "PVC" ? "PVC" : "EPR/XLPE"}, ${fmtS(sF)} mm²)</td><td class="num">${fmt(IZ[iso][idx][col])} A</td></tr>
+        <tr><td>Fator de temperatura (${T} °C${meth === "D" ? ", solo" : ""})</td><td class="num">${fmt(fct, 2)}</td></tr>
+        <tr><td>Fator de agrupamento (${ngrp} circuito${ngrp > 1 ? "s" : ""})</td><td class="num">${fmt(fa, 2)}</td></tr>
+        <tr><td>I<sub>z</sub> corrigida</td><td class="num">${fmt(iz, 1)} A</td></tr>
+        <tr><td>Queda de tensão com ${fmtS(sF)} mm²</td><td class="num">${fmt(dv, 2)} %</td></tr>
+        <tr><td>Coordenação I<sub>B</sub> ≤ I<sub>n</sub> ≤ I<sub>z</sub></td><td class="num">${fmt(Ib, 1)} ≤ ${In} ≤ ${fmt(iz, 1)}</td></tr>
+      </tbody>
+    </table></div>
+    <div class="note ${bumped ? "warn" : "ok"}">${bumped
+      ? `Pelos critérios a seção seria ${fmtS(S[winIdx])} mm², mas não há disjuntor comercial entre ${fmt(Ib, 1)} A e ${fmt(izOf(winIdx), 1)} A. Subiu para ${fmtS(sF)} mm².`
+      : `A seção foi definida pelo critério de ${crit}.`}
+      ${temNeutro && sN < sF ? ` Neutro reduzido pela tabela 48 (trifásico equilibrado, harmônicas ≤ 15 %).` : ""}</div>
+    <div class="actions"><button type="button" id="toConduit">Levar para o eletroduto ↓</button>
+      <span class="hint">Adiciona ${last.nf} fase${last.nf > 1 ? "s" : ""}${temNeutro ? ", neutro" : ""} e PE à lista</span></div>`;
+  // Só redesenha se algo mudou: o evento "change" do campo (ao clicar no botão) não pode trocar o botão no meio do clique.
+  if (out.dataset.html !== html) { out.innerHTML = html; out.dataset.html = html; }
+  $("toConduit").onclick = sendToConduit;
+}
+
+// ---------- Eletroduto ----------
+let rows = [];
+let uid = 0;
+const FUNC = { F: "Fase", N: "Neutro", PE: "PE" };
+function dExt(s) { return DEXT[$("ctipo").value][s]; }
+function addRow(r) {
+  rows.push(Object.assign({ id: ++uid, func: "F", s: 2.5, q: 1, d: null }, r));
+}
+function sendToConduit() {
+  if (!last) return;
+  addRow({ func: "F", s: last.sF, q: last.nf });
+  if (last.sN) addRow({ func: "N", s: last.sN, q: 1 });
+  addRow({ func: "PE", s: last.sPE, q: 1 });
+  renderRows(); calc2();
+  $("t2").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function renderRows() {
+  const box = $("rows");
+  if (!rows.length) { box.innerHTML = `<p class="hint" style="margin:0">Nenhum condutor na lista. Use “Levar para o eletroduto” acima ou adicione à mão.</p>`; return; }
+  box.innerHTML = rows.map((r) => `
+    <div class="crow" data-id="${r.id}">
+      <label><span class="lab">Função</span><select data-k="func">${Object.entries(FUNC).map(([k, v]) => `<option value="${k}"${r.func === k ? " selected" : ""}>${v}</option>`).join("")}</select></label>
+      <label><span class="lab">Seção</span><select data-k="s">${S.map((s) => `<option value="${s}"${r.s === s ? " selected" : ""}>${fmtS(s)} mm²</option>`).join("")}</select></label>
+      <label><span class="lab">Qtd.</span><input data-k="q" class="num" inputmode="numeric" value="${r.q}" aria-label="Quantidade"></label>
+      <label><span class="lab">Ø externo (mm)</span><input data-k="d" class="num" inputmode="decimal" value="${fmt(r.d ?? dExt(r.s))}" aria-label="Diâmetro externo em mm"></label>
+      <button type="button" class="icon" data-del aria-label="Remover">✕</button>
+    </div>`).join("");
+}
+$("rows").addEventListener("input", (e) => {
+  const row = e.target.closest(".crow"); if (!row) return;
+  const r = rows.find((x) => x.id === +row.dataset.id), k = e.target.dataset.k;
+  if (k === "func") r.func = e.target.value;
+  if (k === "s") { r.s = +e.target.value; r.d = null; row.querySelector('[data-k="d"]').value = fmt(dExt(r.s)); }
+  if (k === "q") r.q = Math.max(0, Math.floor(num(e.target.value)) || 0);
+  if (k === "d") { const v = num(e.target.value); r.d = v > 0 ? v : null; }
+  calc2();
+});
+$("rows").addEventListener("click", (e) => {
+  if (!e.target.matches("[data-del]")) return;
+  const id = +e.target.closest(".crow").dataset.id;
+  rows = rows.filter((x) => x.id !== id); renderRows(); calc2();
+});
+$("addRow").onclick = () => { addRow({}); renderRows(); calc2(); };
+$("clearRows").onclick = () => { rows = []; renderRows(); calc2(); };
+$("ctipo").onchange = () => { renderRows(); calc2(); };
+$("etipo").onchange = calc2;
+
+function calc2() {
+  const out = $("res2");
+  const list = rows.filter((r) => r.q > 0);
+  const n = list.reduce((a, r) => a + r.q, 0);
+  if (!n) { out.innerHTML = ""; return; }
+  const area = list.reduce((a, r) => { const d = r.d ?? dExt(r.s); return a + r.q * Math.PI * d * d / 4; }, 0);
+  const taxa = n === 1 ? 0.53 : n === 2 ? 0.31 : 0.40;
+  const dmin = Math.sqrt(4 * area / (Math.PI * taxa));
+  const maxD = Math.max(...list.map((r) => r.d ?? dExt(r.s)));
+  const cat = ELET[$("etipo").value];
+  const pick = cat.find(([, di]) => di >= dmin - 1e-9 && di > maxD * 1.05);
+  let html = `<div class="conduit-out">`;
+  if (pick) {
+    const occ = area / (Math.PI * pick[1] ** 2 / 4);
+    html += `<div>${drawConduit(pick[1], list)}</div>
+      <div style="display:grid;gap:12px">
+        <div class="big"><div><div class="k">Eletroduto</div><div class="v" style="font-size:clamp(26px,7vw,36px)">${pick[0]}</div></div></div>
+        <div><div class="hint">Ocupação ${fmt(occ * 100)} % (limite ${fmt(taxa * 100, 0)} %)</div>
+          <div class="gauge" role="img" aria-label="Ocupação ${fmt(occ * 100)} por cento de ${fmt(taxa * 100, 0)} por cento"><i style="width:${Math.min(100, occ * 100)}%"></i><b style="left:${taxa * 100}%"></b></div></div>
+      </div>`;
+  } else {
+    html += `<div class="note bad" style="grid-column:1/-1">Nenhum eletroduto desta lista comporta os condutores. Divida em mais eletrodutos ou use eletroduto maior/eletrocalha.</div>`;
+  }
+  html += `</div>
+    <div class="tbl"><table><tbody>
+      <tr><td>Condutores no eletroduto</td><td class="num">${n}</td></tr>
+      <tr><td>Área ocupada pelos condutores</td><td class="num">${fmt(area)} mm²</td></tr>
+      <tr><td>Taxa máxima de ocupação</td><td class="num">${fmt(taxa * 100, 0)} %</td></tr>
+      <tr><td>Área interna mínima</td><td class="num">${fmt(area / taxa)} mm²</td></tr>
+      <tr><td>Ø interno mínimo</td><td class="num">${fmt(dmin)} mm</td></tr>
+      ${pick ? `<tr><td>Ø interno de ${pick[0]} (aprox.)</td><td class="num">${fmt(pick[1])} mm</td></tr>` : ""}
+    </tbody></table></div>`;
+  if (n > 0 && list.some((r) => r.func !== "PE") && new Set(list.filter((r) => r.func === "F").map((r) => r.s)).size > 1)
+    html += `<div class="note warn">Há mais de um circuito neste eletroduto. Confira se o fator de agrupamento usado na parte 1 corresponde a esse número de circuitos.</div>`;
+  out.innerHTML = html;
+}
+
+// Desenho do corte do eletroduto: empilha os condutores por "gravidade" (do maior para o menor).
+function drawConduit(Di, list) {
+  const R = Di / 2, wall = Math.max(1.2, Di * 0.07), size = 220, pad = 6;
+  const sc = (size / 2 - pad) / (R + wall);
+  const circles = [];
+  list.forEach((r) => { for (let i = 0; i < r.q; i++) circles.push({ r: (r.d ?? dExt(r.s)) / 2, func: r.func }); });
+  circles.sort((a, b) => b.r - a.r);
+  const placed = [];
+  const step = R / 70;
+  let missing = 0;
+  for (const c of circles) {
+    let best = null;
+    for (let y = R - c.r; y >= -(R - c.r); y -= step) {
+      if (best && y < best.y - 1e-9) break;
+      for (let x = 0; x <= R - c.r; x += step) {
+        for (const sx of x === 0 ? [0] : [x, -x]) {
+          if (sx * sx + y * y > (R - c.r) ** 2) continue;
+          if (placed.some((p) => (p.x - sx) ** 2 + (p.y - y) ** 2 < (p.r + c.r) ** 2 - 1e-6)) continue;
+          if (!best || y > best.y + 1e-9 || Math.abs(sx) < Math.abs(best.x)) best = { x: sx, y };
+        }
+        if (best && best.y === y) break;
+      }
+      if (best) break;
+    }
+    if (best) placed.push({ ...c, ...best }); else missing++;
+  }
+  let fi = 0;
+  const fill = (f) => f === "N" ? "var(--w-neutro)" : f === "PE" ? "var(--w-pe)" : ["var(--w-fase1)", "var(--w-fase2)", "var(--w-fase3)"][fi++ % 3];
+  const cx = size / 2;
+  const svg = placed.map((p) => {
+    const X = cx + p.x * sc, Y = cx + p.y * sc, rr = p.r * sc;
+    const inner = p.func === "PE" ? `<circle cx="${X}" cy="${Y}" r="${rr * 0.55}" fill="none" stroke="var(--w-pe2)" stroke-width="${Math.max(1, rr * 0.22)}"/>` : "";
+    return `<circle cx="${X}" cy="${Y}" r="${rr - 0.5}" fill="${fill(p.func)}" stroke="var(--conduit-edge)" stroke-width="1"/>${inner}`;
+  }).join("");
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="Corte do eletroduto com ${placed.length} condutores">
+    <circle cx="${cx}" cy="${cx}" r="${(R + wall / 2) * sc}" fill="none" stroke="var(--conduit-edge)" stroke-width="${wall * sc}"/>
+    <circle cx="${cx}" cy="${cx}" r="${R * sc}" fill="var(--conduit)"/>
+    ${svg}
+  </svg>
+  <div class="hint" style="text-align:center">
+    <span class="swatch" style="background:var(--w-fase1)"></span>fase
+    <span class="swatch" style="background:var(--w-neutro);margin-left:8px"></span>neutro
+    <span class="swatch" style="background:var(--w-pe)"></span>PE
+    ${missing ? `<br>${missing} condutor(es) não couberam no desenho` : ""}</div>`;
+}
+
+// ---------- Interação ----------
+function onSystem() {
+  const sis = radio("sis");
+  const v = $("tensao");
+  if (!v.dataset.touched) v.value = sis === "FN" ? "127" : sis === "FF" ? "220" : "380";
+  $("tensaoHint").textContent = sis === "FN" ? "Fase-neutro" : "Entre fases";
+}
+function onMode() {
+  const m = radio("modo");
+  $("lblCarga").firstChild.textContent = m === "P" ? "Potência ativa " : "Corrente de projeto ";
+  $("cargaU").textContent = m === "P" ? "W" : "A";
+}
+document.querySelectorAll('input[name="sis"]').forEach((el) => el.addEventListener("change", () => { onSystem(); calc1(); }));
+document.querySelectorAll('input[name="modo"]').forEach((el) => el.addEventListener("change", () => { onMode(); calc1(); }));
+$("tensao").addEventListener("input", (e) => { e.target.dataset.touched = "1"; });
+$("temp").addEventListener("change", (e) => { e.target.dataset.touched = "1"; });
+$("metodo").addEventListener("change", () => { delete $("temp").dataset.touched; fillTemp(); calc1(); });
+$("isol").addEventListener("change", () => { fillTemp(); calc1(); });
+$("fc").addEventListener("input", calc1);
+$("fc").addEventListener("change", calc1);
+
+fillTemp(); onSystem(); onMode(); calc1(); renderRows(); calc2();
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+}
+</script>
+</body>
+</html>
