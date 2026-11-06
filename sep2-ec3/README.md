@@ -26,6 +26,7 @@ Para rodar no Colab: faça upload do `.ipynb` e do `dados_sistema13B_EC2.txt` e 
 
    - Carregamento: S até 100 % da CAP no caso base e até 115 % em contingência. Geração: PG entre CGmin e CGmax.
    - Controles: tape de 0,9 a 1,1, defasador de ±30°, Bsh11 de 0 a 0,8 pu e V dos geradores dentro da faixa normal do nível da barra.
+   - `MOSTRAR_DETALHES_CONTINGENCIAS = True`: imprime, para **cada** contingência, as tabelas completas. No FP linearizado: fluxos, perdas, carregamento e parcela do ID de cada circuito. No Newton-Raphson: barras com V, faixa de tensão do nível, ângulo, PG, QG e status, e circuitos com P, Q, S, limite, carregamento e status, além da lista de violações. Com `False`, só as tabelas-resumo.
 2. **EC3-2 Utilitários.** Desliga circuitos pela coluna `LIG(L)DESL(D)`, detecta ilhamento e roda o NR do EC2 sem imprimir as iterações. Também lista as violações de tensão, de carregamento (S) e de PG.
 3. **EC3-3 FP linearizado com perdas ôhmicas.**
    - Fluxo no circuito: `P_km = (θk − θm + φ)/x`.

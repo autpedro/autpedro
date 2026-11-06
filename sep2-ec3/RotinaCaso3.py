@@ -1530,6 +1530,14 @@ MARGEM_SLP = {'V': 0.002,      # pu de tensão
 # tensão, tapes, defasador e compensador são ações de operação.
 PESO_ACAO = {'P': 1.0, 'V': 0.3, 'TAP': 0.3, 'DEF': 0.3, 'BSH': 0.3}
 
+# --------------------------------------------------------------
+# Impressão detalhada das contingências
+#   True  -> imprime, para CADA contingência, a tabela completa de
+#            barras e de circuitos (FP linearizado e Newton-Raphson)
+#   False -> imprime só as tabelas-resumo
+# --------------------------------------------------------------
+MOSTRAR_DETALHES_CONTINGENCIAS = True
+
 PASTA_RESULTADOS = 'resultados_EC3'
 os.makedirs(PASTA_RESULTADOS, exist_ok=True)
 
@@ -1861,6 +1869,29 @@ def sobrecargas_dc(fluxos_dc, fator):
     return excesso.clip(lower=0.0)
 
 
+def imprimir_contingencia_dc(nome, fl, s100, s115, carreg):
+    """Imprime os fluxos do FP linearizado com perdas de UMA contingência
+    e as parcelas do índice de severidade de cada circuito."""
+    subtitulo(f"CONTINGÊNCIA {nome} — FP linearizado com perdas")
+    tab = pd.DataFrame({
+        'Circuito': fl['Circuito'],
+        'Pkm (MW)': fl['Pkm (MW)'],
+        'Pmk (MW)': fl['Pmk (MW)'],
+        'Perda (MW)': fl['Perda (MW)'],
+        '|P| (MW)': fl['|P| (MW)'],
+        'Pmax (MW)': fl['Pmax (MW)'],
+        'Carreg. (%)': carreg,
+        'Sobrec (100%)': s100,
+        'Sobrec (115%)': s115,
+    })
+    tab['Status'] = np.where(carreg > 100 * FATOR_CAP_EMERGENCIA, 'EXCEDEU 115%',
+                             np.where(carreg > 100, 'ACIMA 100%', 'OK'))
+    imprimir_dataframe(tab, casas=3)
+    print(f"\n  Perdas totais (CC): {fl['Perda (MW)'].sum():.3f} MW")
+    print(f"  ID (P_max = CAP)      = {s100.sum():.4f}")
+    print(f"  ID (P_max = 1,15·CAP) = {s115.sum():.4f}")
+
+
 def ranking_contingencias(dbar, dcir_base, Pg=None, mostrar=True):
     """
     Simula, com o FP linearizado com perdas, a saída de cada circuito
@@ -1877,6 +1908,9 @@ def ranking_contingencias(dbar, dcir_base, Pg=None, mostrar=True):
         dc = fluxo_dc_com_perdas(dbar, dcir_k, Pg=Pg)
 
         if dc['ilhado']:
+            if mostrar:
+                subtitulo(f"CONTINGÊNCIA {nome} — FP linearizado com perdas")
+                print("  ILHAMENTO: a rede fica desconexa; contingência não simulada.")
             linhas.append({'Contingência': nome, 'NCIR': ncir,
                            'ID (100%)': np.nan, 'ID (115%)': np.nan,
                            'Maior carreg. (%)': np.nan,
@@ -1889,6 +1923,9 @@ def ranking_contingencias(dbar, dcir_base, Pg=None, mostrar=True):
         s115 = sobrecargas_dc(fl, FATOR_CAP_EMERGENCIA)
         carreg = 100 * fl['|P| (MW)'] / fl['Pmax (MW)']
         detalhes[ncir] = fl.assign(**{'Carreg. (%)': carreg})
+
+        if mostrar:
+            imprimir_contingencia_dc(nome, fl, s100, s115, carreg)
 
         linhas.append({
             'Contingência': nome, 'NCIR': ncir,
@@ -1921,6 +1958,67 @@ def ranking_contingencias(dbar, dcir_base, Pg=None, mostrar=True):
 # os limites de operação normal.
 # ==============================================================
 
+def imprimir_cenario_ac(dbar, nome, cond, res, viol):
+    """Imprime o resultado do Newton-Raphson de UM cenário (caso base
+    ou contingência): barras com limites de tensão e de geração e
+    circuitos com o carregamento frente ao limite da condição."""
+    rotulo_cond = 'limites NORMAIS' if cond == 'normal' else 'limites de EMERGÊNCIA'
+    subtitulo(f"CENÁRIO {nome} — Newton-Raphson ({rotulo_cond})")
+
+    if res.get('ilhado'):
+        print("  ILHAMENTO: a rede fica desconexa; cenário não simulado.")
+        return
+    if not res['convergiu']:
+        print("  O Newton-Raphson NÃO CONVERGIU neste cenário.")
+        return
+
+    nr = res['nr']
+    print(f"  Convergiu em {nr['iteracoes']} iterações (erro máx. {nr['erro']:.2e} pu)")
+
+    # ---- barras ----
+    b = res['barras'].copy()
+    lim = [limites_tensao(cond, x) for x in b['Barra']]
+    b.insert(3, 'Nível (kV)', [NIVEL_KV[int(x)] for x in b['Barra']])
+    b['Vmin (pu)'] = [l[0] for l in lim]
+    b['Vmax (pu)'] = [l[1] for l in lim]
+    st = []
+    for i, r in b.iterrows():
+        s_ = 'OK'
+        if r['V (pu)'] < r['Vmin (pu)'] - 1e-6:
+            s_ = 'SUBTENSÃO'
+        elif r['V (pu)'] > r['Vmax (pu)'] + 1e-6:
+            s_ = 'SOBRETENSÃO'
+        if r['Tipo'] in ('PV', 'SW'):
+            pmin = dbar['CGmin(PU)'].iloc[i] * S_BASE
+            pmax = dbar['CGmax(PU)'].iloc[i] * S_BASE
+            if not (pmin - 1e-3 <= r['PG (MW)'] <= pmax + 1e-3):
+                s_ = 'PG FORA' if s_ == 'OK' else s_ + ' / PG FORA'
+        st.append(s_)
+    b['Status'] = st
+    print("\n  Barras:")
+    imprimir_dataframe(b[['Barra', 'Tipo', 'Nível (kV)', 'V (pu)', 'Vmin (pu)', 'Vmax (pu)',
+                          'Ângulo (°)', 'PG (MW)', 'QG (MVAr)', 'PD (MW)', 'QD (MVAr)',
+                          'Status']], casas=4)
+
+    # ---- circuitos ----
+    f = res['fluxos'].copy()
+    fat = fator_capacidade(cond)
+    f['Limite (MVA)'] = f['Capacidade (MVA)'] * fat
+    f['Status'] = np.where(f['Smax (MVA)'] > f['Limite (MVA)'] + 1e-6, 'EXCEDEU', 'OK')
+    print(f"\n  Circuitos (limite = {100*fat:.0f} % da CAP):")
+    imprimir_dataframe(f[['De', 'Para', 'NCIR', 'Pkm (MW)', 'Qkm (MVAr)', 'Pmk (MW)',
+                          'Qmk (MVAr)', 'Smax (MVA)', 'Capacidade (MVA)', 'Limite (MVA)',
+                          'Carregamento (%)', 'Perda P (MW)', 'Status']], casas=3)
+
+    print(f"\n  Perdas: {res['perdas_MW']:.3f} MW | PG da barra SW: {res['Pg_sw']*S_BASE:.3f} MW")
+    if viol:
+        print("  VIOLAÇÕES:")
+        for v in viol:
+            print(f"    - {v}")
+    else:
+        print("  Nenhuma violação neste cenário.")
+
+
 def analise_n1_ac(dbar, dcir_base, mostrar=True):
     """
     Avalia o caso base (normal) e todas as contingências simples de
@@ -1940,6 +2038,9 @@ def analise_n1_ac(dbar, dcir_base, mostrar=True):
         res = fluxo_ac(dbar, dcir_k)
         viol = violacoes_ac(dbar, res, cond)
         resultados[nome] = res
+
+        if mostrar:
+            imprimir_cenario_ac(dbar, nome, cond, res, viol)
 
         if res['convergiu']:
             f, b = res['fluxos'], res['barras']
@@ -2499,7 +2600,9 @@ def main_ec3():
     # 2) Índice de severidade e ordenação (FP linearizado)
     # ----------------------------------------------------------
     titulo("2) ÍNDICE DE SEVERIDADE — ORDENAÇÃO DAS CONTINGÊNCIAS (FP CC c/ perdas)")
-    rk_antes, det_antes = ranking_contingencias(dbar, dcir_base)
+    rk_antes, det_antes = ranking_contingencias(
+        dbar, dcir_base, mostrar=MOSTRAR_DETALHES_CONTINGENCIAS)
+    subtitulo("RESUMO — contingências ordenadas pelo índice de severidade")
     imprimir_dataframe(rk_antes, casas=4)
     rk_antes.to_csv(os.path.join(PASTA_RESULTADOS, 'ranking_ID_antes.csv'), index=False, sep=';', decimal=',')
     grafico_ranking(rk_antes, os.path.join(PASTA_RESULTADOS, 'ranking_ID_antes.png'))
@@ -2508,7 +2611,9 @@ def main_ec3():
     # 3) Diagnóstico N-1 não linear (questão 1)
     # ----------------------------------------------------------
     titulo("3) DIAGNÓSTICO N-1 NÃO LINEAR (NR) — QUESTÃO 1")
-    n1_antes, res_antes = analise_n1_ac(dbar, dcir_base)
+    n1_antes, res_antes = analise_n1_ac(
+        dbar, dcir_base, mostrar=MOSTRAR_DETALHES_CONTINGENCIAS)
+    subtitulo("RESUMO — análise N-1 não linear (antes do controle)")
     imprimir_dataframe(n1_antes.drop(columns=['Violações']), casas=4)
     print("\nViolações por cenário:")
     for _, r in n1_antes.iterrows():
@@ -2572,7 +2677,9 @@ def main_ec3():
     # 6) Verificação final (NR) do sistema controlado
     # ----------------------------------------------------------
     titulo("6) VERIFICAÇÃO FINAL N-1 (NR) — SISTEMA CONTROLADO")
-    n1_depois, res_depois = analise_n1_ac(dbar_f, dcir_f)
+    n1_depois, res_depois = analise_n1_ac(
+        dbar_f, dcir_f, mostrar=MOSTRAR_DETALHES_CONTINGENCIAS)
+    subtitulo("RESUMO — análise N-1 não linear (sistema controlado)")
     imprimir_dataframe(n1_depois.drop(columns=['Violações']), casas=4)
     print("\nViolações por cenário:")
     for _, r in n1_depois.iterrows():
@@ -2595,7 +2702,7 @@ def main_ec3():
 
     # Índice de severidade após o controle (FP CC)
     subtitulo("Índice de severidade após o controle (FP CC c/ perdas)")
-    rk_depois, _ = ranking_contingencias(dbar_f, dcir_f)
+    rk_depois, _ = ranking_contingencias(dbar_f, dcir_f, mostrar=False)
     imprimir_dataframe(rk_depois, casas=4)
     rk_depois.to_csv(os.path.join(PASTA_RESULTADOS, 'ranking_ID_depois.csv'), index=False, sep=';', decimal=',')
 
